@@ -1,4 +1,15 @@
 <launch>
+
+  <!-- Set use_sim_time parameter when you use bag data.-->
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- When Use a realsense node, comment below two tf -->
+  <node pkg="tf" type="static_transform_publisher" name="depth_to_camera_link" 
+      args=" 0 0 0 -1.5708 0 -1.5708 camera_link camera_color_optical_frame  10" />
+
+  <node pkg="tf" type="static_transform_publisher" name="depth_points_to_base_link" 
+      args=" 0 0 0 0 0 0 base_link camera_link  10" />
+  
   <node name="orb_slam2_rgbd" pkg="orb_slam2_ros"
       type="orb_slam2_ros_rgbd" output="screen">
 
@@ -17,7 +28,6 @@
 
        <param name="pointcloud_frame_id" type="string" value="map" />
        <param name="camera_frame_id" type="string" value="camera_link" />
-       <!-- <param name="target_frame_id" type="string" value="map" /> -->
        <param name="min_num_kf_in_map" type="int" value="5" />
 
        <!-- ORB parameters -->
