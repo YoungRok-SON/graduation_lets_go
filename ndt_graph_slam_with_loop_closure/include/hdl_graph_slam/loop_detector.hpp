@@ -162,12 +162,12 @@ namespace hdl_graph_slam
         std::cout << "." << std::flush;
 
         double score = registration->getFitnessScore(fitness_score_max_range);
-        if (!registration->hasConverged() || score > best_score) // 매칭이 제대로 안된 경우
+        if (!registration->hasConverged() || score > best_score) // 매칭이 제대로 안된 경우 -> 매칭이 제일 잘 된 놈만 골라내는거
         {
           continue;
         }
 
-        best_score = score;
+        best_score = score;  // Score는 낮을수록 좋은거
         best_matched = candidate;
         relative_pose = registration->getFinalTransformation();
       }

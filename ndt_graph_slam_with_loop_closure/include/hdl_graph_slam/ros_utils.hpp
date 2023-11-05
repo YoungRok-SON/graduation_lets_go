@@ -9,6 +9,7 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/PoseStamped.h>
 
 namespace hdl_graph_slam {
 
@@ -54,6 +55,10 @@ static Eigen::Isometry3d tf2isometry(const tf::StampedTransform& trans) {
   mat.translation() = Eigen::Vector3d(trans.getOrigin().x(), trans.getOrigin().y(), trans.getOrigin().z());
   mat.linear() = Eigen::Quaterniond(trans.getRotation().w(), trans.getRotation().x(), trans.getRotation().y(), trans.getRotation().z()).toRotationMatrix();
   return mat;
+}
+
+static Eigen::Isometry3d poseStampedPtr2isometry(const geometry_msgs::PoseStampedConstPtr& pose_msg) {
+  return pose2isometry(pose_msg->pose);
 }
 
 static geometry_msgs::Pose isometry2pose(const Eigen::Isometry3d& mat) {

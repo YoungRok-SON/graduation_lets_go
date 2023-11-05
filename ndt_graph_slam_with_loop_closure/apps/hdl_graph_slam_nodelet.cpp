@@ -25,7 +25,8 @@
 #include <tf/transform_listener.h>
 
 #include <std_msgs/Time.h>
-#include <nav_msgs/Odometry.h>
+// #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <nmea_msgs/Sentence.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/NavSatFix.h>
@@ -67,7 +68,7 @@ namespace hdl_graph_slam
   {
   public:
     typedef pcl::PointXYZI PointT;
-    typedef message_filters::sync_policies::ApproximateTime<nav_msgs::Odometry, sensor_msgs::PointCloud2> ApproxSyncPolicy;
+    typedef message_filters::sync_policies::ApproximateTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> ApproxSyncPolicy;
 
     HdlGraphSlamNodelet() {}
     virtual ~HdlGraphSlamNodelet() {}
@@ -118,12 +119,16 @@ namespace hdl_graph_slam
       points_topic = private_nh.param<std::string>("points_topic", "/velodyne_points");
 
       // subscribers
-      odom_sub.reset(new message_filters::Subscriber<nav_msgs::Odometry>(mt_nh, published_odom_topic, 256));
+      odom_sub.reset(new message_filters::Subscriber<geometry_msgs::PoseStamped>(mt_nh, published_odom_topic, 256));
       cloud_sub.reset(new message_filters::Subscriber<sensor_msgs::PointCloud2>(mt_nh, "/filtered_points", 32));
       sync.reset(new message_filters::Synchronizer<ApproxSyncPolicy>(ApproxSyncPolicy(32), *odom_sub, *cloud_sub)); // 포인트클라우드랑 포즈 정보랑 엮으려고 필터 사용
       sync->registerCallback(boost::bind(&HdlGraphSlamNodelet::cloud_callback, this, _1, _2));
       imu_sub = nh.subscribe("/gpsimu_driver/imu_data", 1024, &HdlGraphSlamNodelet::imu_callback, this);
       floor_sub = nh.subscribe("/floor_detection/floor_coeffs", 1024, &HdlGraphSlamNodelet::floor_coeffs_callback, this);
+
+      // Debug Publisher
+      debug_loop_closer_target_pub = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
+      debug_loop_closer_source_pub = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
 
       if (private_nh.param<bool>("enable_gps", true))
       {
@@ -155,10 +160,10 @@ namespace hdl_graph_slam
      * @param odom_msg
      * @param cloud_msg
      */
-    void cloud_callback(const nav_msgs::OdometryConstPtr &odom_msg, const sensor_msgs::PointCloud2::ConstPtr &cloud_msg) // odometry 데이터랑 포인트 클라우드를 같이 수신
+    void cloud_callback(const geometry_msgs::PoseStampedConstPtr &odom_msg, const sensor_msgs::PointCloud2::ConstPtr &cloud_msg) // odometry 데이터랑 포인트 클라우드를 같이 수신
     {
       const ros::Time &stamp = cloud_msg->header.stamp;
-      Eigen::Isometry3d odom = odom2isometry(odom_msg);
+      Eigen::Isometry3d odom = poseStampedPtr2isometry(odom_msg);
 
       pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
       pcl::fromROSMsg(*cloud_msg, *cloud);
@@ -675,6 +680,7 @@ namespace hdl_graph_slam
       trans_odom2map_mutex.unlock();
 
       // 벡터인 Keyframes에 있는 객체들을 복사해서 snapshot이라는 벡터 컨테이너에 KeyFrameSnapshot이라는 형태로 저장
+      // 결국 새로운 키프래임들을 같이 하나의 맵 데이터로 저장하는 것 같음.
       std::vector<KeyFrameSnapshot::Ptr> snapshot(keyframes.size());
       std::transform(keyframes.begin(), keyframes.end(), snapshot.begin(), [=](const KeyFrame::Ptr &k)
                      { return std::make_shared<KeyFrameSnapshot>(k); });
@@ -1137,6 +1143,10 @@ namespace hdl_graph_slam
     }
 
   private:
+    // Debug Variables
+    ros::Publisher debug_loop_closer_target_pub;
+    ros::Publisher debug_loop_closer_source_pub;
+
     // ROS
     ros::NodeHandle nh;
     ros::NodeHandle mt_nh;
@@ -1144,7 +1154,7 @@ namespace hdl_graph_slam
     ros::WallTimer optimization_timer;
     ros::WallTimer map_publish_timer;
 
-    std::unique_ptr<message_filters::Subscriber<nav_msgs::Odometry>> odom_sub;
+    std::unique_ptr<message_filters::Subscriber<geometry_msgs::PoseStamped>> odom_sub;
     std::unique_ptr<message_filters::Subscriber<sensor_msgs::PointCloud2>> cloud_sub;
     std::unique_ptr<message_filters::Synchronizer<ApproxSyncPolicy>> sync;
 

@@ -33,9 +33,9 @@
     <!-- in case base_link_frame is blank, mapping will be performed in the lidar frame -->
     <param name="base_link_frame" value="base_link" />
     <!-- distance filter -->
-    <param name="use_distance_filter" value="true" />
+    <param name="use_distance_filter" value="false" />
     <param name="distance_near_thresh" value="0.1" />
-    <param name="distance_far_thresh" value="40.0" />
+    <param name="distance_far_thresh" value="5" />
     <!-- NONE, VOXELGRID, or APPROX_VOXELGRID -->
     <param name="downsample_method" value="VOXELGRID" />
     <param name="downsample_resolution" value="0.05" />
@@ -64,28 +64,29 @@
     <param name="enable_imu_acceleration" value="$(arg enable_imu_acc)" />
     <param name="enable_imu_orientation" value="$(arg enable_imu_ori)" />
     <!-- keyframe registration params -->
-    <param name="max_keyframes_per_update" value="10" />
-    <param name="keyframe_delta_trans" value="1.0" />
-    <param name="keyframe_delta_angle" value="2.0" />
+    <param name="max_keyframes_per_update" value="15" />
+    <param name="keyframe_delta_trans" value="1.0" />       <!-- meter-Default: 1.0 -->
+    <param name="keyframe_delta_angle" value="0.261799" />  <!-- Radian-Default: 2.0 / 0.523599Rad=30Deg, 0.349066Rad=20Deg / 0.261799Rad=15Deg-->
     <!-- fix first node for optimization stability -->
     <param name="fix_first_node" value="true"/>
-    <param name="fix_first_node_stddev" value="10 10 10 1 1 1"/>
+    <param name="fix_first_node_stddev" value="20 20 20 1 1 1"/>
     <param name="fix_first_node_adaptive" value="true"/>
     <!-- loop closure params -->
-    <param name="distance_thresh" value="1.0" />
-    <param name="accum_distance_thresh" value="3.0" />
-    <param name="min_edge_interval" value="1.0" />
-    <param name="fitness_score_thresh" value="0.5" />
+    <param name="distance_thresh" value="10.0" />
+    <param name="accum_distance_thresh" value="10.0" />
+    <param name="min_edge_interval" value="5.0" />
+    <param name="fitness_score_thresh" value="0.3" /> <!-- 이건 어떤 값이었는지 확인 -->
     <!-- scan matching params -->
+    <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />
-    <param name="reg_num_threads" value="3" />
-    <param name="reg_transformation_epsilon" value="0.1"/>
+    <param name="reg_num_threads" value="0" />
+    <param name="reg_transformation_epsilon" value="0.08"/>
     <param name="reg_maximum_iterations" value="64"/>
-    <param name="reg_max_correspondence_distance" value="2.0"/>
+    <param name="reg_max_correspondence_distance" value="0.8"/>
     <param name="reg_max_optimizer_iterations" value="20"/>
     <param name="reg_use_reciprocal_correspondences" value="false"/>
     <param name="reg_correspondence_randomness" value="20"/>
-    <param name="reg_resolution" value="1.0" />
+    <param name="reg_resolution" value="0.8" />
     <param name="reg_nn_search_method" value="DIRECT7" />
     <!-- edge params -->
     <!-- GPS -->
