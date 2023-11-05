@@ -157,8 +157,10 @@ namespace hdl_graph_slam
         Eigen::Isometry3d candidate_estimate = candidate->node->estimate();
         candidate_estimate.linear() = Eigen::Quaterniond(candidate_estimate.linear()).normalized().toRotationMatrix();
         Eigen::Matrix4f guess = (new_keyframe_estimate.inverse() * candidate_estimate).matrix().cast<float>();
+        // 각 노드의 위치를 통해서 guess를 구함. 즉, 두 노드 사이의 상대 위치를 구함
+
         guess(2, 3) = 0.0; // 높이를 없애는 역할..
-        registration->align(*aligned, guess);
+        registration->align(*aligned, guess); // 결국 정렬된 포인트 클라우드는 사용을 안함
         std::cout << "." << std::flush;
 
         double score = registration->getFitnessScore(fitness_score_max_range);
@@ -168,7 +170,7 @@ namespace hdl_graph_slam
         }
 
         best_score = score;  // Score는 낮을수록 좋은거
-        best_matched = candidate;
+        best_matched = candidate; // Target이 새로 들어온 ketframe, Source가 기존에 누적한 keyframe
         relative_pose = registration->getFinalTransformation();
       }
 
@@ -187,7 +189,7 @@ namespace hdl_graph_slam
 
       last_edge_accum_distance = new_keyframe->accum_distance;
 
-      return std::make_shared<Loop>(new_keyframe, best_matched, relative_pose);
+      return std::make_shared<Loop>(new_keyframe, best_matched, relative_pose); //key1이 target, key2가 source
     }
 
   private:

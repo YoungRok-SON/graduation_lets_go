@@ -23,6 +23,7 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <tf_conversions/tf_eigen.h>
 #include <tf/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <std_msgs/Time.h>
 // #include <nav_msgs/Odometry.h>
@@ -129,6 +130,8 @@ namespace hdl_graph_slam
       // Debug Publisher
       debug_loop_closer_target_pub = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
       debug_loop_closer_source_pub = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
+      debug_loop_closure_target_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
+      debug_loop_closure_source_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
 
       if (private_nh.param<bool>("enable_gps", true))
       {
@@ -647,13 +650,22 @@ namespace hdl_graph_slam
       }
 
       // loop detection
-      std::vector<Loop::Ptr> loops = loop_detector->detect(keyframes, new_keyframes, *graph_slam); // 새로운 키프래임과 이전 키프레임 사이의 매칭 진행?
+      std::vector<Loop::Ptr> loops = loop_detector->detect(keyframes, new_keyframes, *graph_slam);
+      // 새로운 키프래임과 이전 키프레임 사이의 매칭 진행? -> N(기존 키프레임들) : M(새로운 키프레임들) 사이의 매칭을 진행해서 여러개가 나올 수 있음.
       for (const auto &loop : loops)
       {
         Eigen::Isometry3d relpose(loop->relative_pose.cast<double>());
         Eigen::MatrixXd information_matrix = inf_calclator->calc_information_matrix(loop->key1->cloud, loop->key2->cloud, relpose);
         auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix);
         graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("loop_closure_edge_robust_kernel", "NONE"), private_nh.param<double>("loop_closure_edge_robust_kernel_size", 1.0));
+        
+        // Debug Publisher
+        debug_loop_closure_keyframe_mutex.lock();
+        if(debug_loop_closer_target_pub.getNumSubscribers() && debug_loop_closer_source_pub.getNumSubscribers())
+        {
+          debug_loop_closure_points_pose(loop);
+        }
+        debug_loop_closure_keyframe_mutex.unlock();
       }
 
       std::copy(new_keyframes.begin(), new_keyframes.end(), std::back_inserter(keyframes));
@@ -680,7 +692,7 @@ namespace hdl_graph_slam
       trans_odom2map_mutex.unlock();
 
       // 벡터인 Keyframes에 있는 객체들을 복사해서 snapshot이라는 벡터 컨테이너에 KeyFrameSnapshot이라는 형태로 저장
-      // 결국 새로운 키프래임들을 같이 하나의 맵 데이터로 저장하는 것 같음.
+      // 결국 새로운 키프래임들을 같이 하나의 맵 데이터로 저장
       std::vector<KeyFrameSnapshot::Ptr> snapshot(keyframes.size());
       std::transform(keyframes.begin(), keyframes.end(), snapshot.begin(), [=](const KeyFrame::Ptr &k)
                      { return std::make_shared<KeyFrameSnapshot>(k); });
@@ -702,6 +714,80 @@ namespace hdl_graph_slam
         markers_pub.publish(markers);
       }
     }
+    /**
+     * @brief Publish loop closre pose with point cloud
+     * @param loop - loop closure data
+     */
+    void debug_loop_closure_points_pose(Loop::Ptr loop)
+    {
+      // Target Pose
+      geometry_msgs::PoseStamped pose_msg_target;
+      pose_msg_target.header.frame_id = map_frame_id;
+      pose_msg_target.header.stamp = ros::Time::now();
+      pose_msg_target.pose.position.x = loop->key1->node->estimate().translation().x();
+      pose_msg_target.pose.position.y = loop->key1->node->estimate().translation().y();
+      pose_msg_target.pose.position.z = loop->key1->node->estimate().translation().z();
+      Eigen::Quaterniond quat_target(loop->key1->node->estimate().rotation());
+      pose_msg_target.pose.orientation.x = quat_target.x();
+      pose_msg_target.pose.orientation.y = quat_target.y();
+      pose_msg_target.pose.orientation.z = quat_target.z();
+      pose_msg_target.pose.orientation.w = quat_target.w();
+      debug_loop_closure_target_pose_pub.publish(pose_msg_target);
+      // Source Pose
+      geometry_msgs::PoseStamped pose_msg_source;
+      pose_msg_source.header.frame_id = map_frame_id;
+      pose_msg_source.header.stamp = ros::Time::now();
+      pose_msg_source.pose.position.x = loop->key2->node->estimate().translation().x();
+      pose_msg_source.pose.position.y = loop->key2->node->estimate().translation().y();
+      pose_msg_source.pose.position.z = loop->key2->node->estimate().translation().z();
+      Eigen::Quaterniond quat_source(loop->key2->node->estimate().rotation());
+      pose_msg_source.pose.orientation.x = quat_source.x();
+      pose_msg_source.pose.orientation.y = quat_source.y();
+      pose_msg_source.pose.orientation.z = quat_source.z();
+      pose_msg_source.pose.orientation.w = quat_source.w();
+      debug_loop_closure_source_pose_pub.publish(pose_msg_source);
+      
+      geometry_msgs::TransformStamped transformStamped_target;
+
+      transformStamped_target.header.frame_id = "map";
+      transformStamped_target.child_frame_id = "debug_loop_closure_target_pose";
+      transformStamped_target.transform.translation.x = loop->key1->node->estimate().translation().x();
+      transformStamped_target.transform.translation.y = loop->key1->node->estimate().translation().y();
+      transformStamped_target.transform.translation.z = loop->key1->node->estimate().translation().z();
+      transformStamped_target.transform.rotation.x    = quat_target.x();
+      transformStamped_target.transform.rotation.y    = quat_target.y();
+      transformStamped_target.transform.rotation.z    = quat_target.z();
+      transformStamped_target.transform.rotation.w    = quat_target.w();
+      transformStamped_target.header.stamp = ros::Time::now();
+      
+      geometry_msgs::TransformStamped transformStamped_source;
+      transformStamped_source.header.frame_id = "map";
+      transformStamped_source.child_frame_id = "debug_loop_closure_source_pose";
+      transformStamped_source.transform.translation.x = loop->key2->node->estimate().translation().x();
+      transformStamped_source.transform.translation.y = loop->key2->node->estimate().translation().y();
+      transformStamped_source.transform.translation.z = loop->key2->node->estimate().translation().z();
+      transformStamped_source.transform.rotation.x    = quat_source.x();
+      transformStamped_source.transform.rotation.y    = quat_source.y();
+      transformStamped_source.transform.rotation.z    = quat_source.z();
+      transformStamped_source.transform.rotation.w    = quat_source.w();
+      transformStamped_source.header.stamp = ros::Time::now();
+
+      debug_tf2_tf_broadcaster.sendTransform(transformStamped_target);
+      debug_tf2_tf_broadcaster.sendTransform(transformStamped_source);
+
+      // Target PointCloud
+      sensor_msgs::PointCloud2Ptr cloud_msg_target(new sensor_msgs::PointCloud2());
+      pcl::toROSMsg(*loop->key1->cloud, *cloud_msg_target);
+      cloud_msg_target->header.frame_id = "debug_loop_closure_target_pose";
+      cloud_msg_target->header.stamp = ros::Time::now();
+      debug_loop_closer_target_pub.publish(cloud_msg_target);
+      // Source PointCloud
+      sensor_msgs::PointCloud2Ptr cloud_msg_source(new sensor_msgs::PointCloud2());
+      pcl::toROSMsg(*loop->key2->cloud, *cloud_msg_source);
+      cloud_msg_source->header.frame_id = "debug_loop_closure_source_pose";
+      cloud_msg_source->header.stamp = ros::Time::now();
+      debug_loop_closer_source_pub.publish(cloud_msg_source);
+    }
 
     /**
      * @brief create visualization marker
@@ -722,16 +808,17 @@ namespace hdl_graph_slam
       traj_marker.type = visualization_msgs::Marker::SPHERE_LIST;
 
       traj_marker.pose.orientation.w = 1.0;
-      traj_marker.scale.x = traj_marker.scale.y = traj_marker.scale.z = 0.5;
+      traj_marker.scale.x = traj_marker.scale.y = traj_marker.scale.z = 0.25;
 
-      visualization_msgs::Marker &imu_marker = markers.markers[1];
-      imu_marker.header = traj_marker.header;
-      imu_marker.ns = "imu";
-      imu_marker.id = 1;
-      imu_marker.type = visualization_msgs::Marker::SPHERE_LIST;
+      // As I don't use imu data, I don't need to visualize it.
+      // visualization_msgs::Marker &imu_marker = markers.markers[1];
+      // imu_marker.header = traj_marker.header;
+      // imu_marker.ns = "imu";
+      // imu_marker.id = 1;
+      // imu_marker.type = visualization_msgs::Marker::SPHERE_LIST;
 
-      imu_marker.pose.orientation.w = 1.0;
-      imu_marker.scale.x = imu_marker.scale.y = imu_marker.scale.z = 0.75;
+      // imu_marker.pose.orientation.w = 1.0;
+      // imu_marker.scale.x = imu_marker.scale.y = imu_marker.scale.z = 0.75;
 
       traj_marker.points.resize(keyframes.size());
       traj_marker.colors.resize(keyframes.size());
@@ -762,8 +849,8 @@ namespace hdl_graph_slam
           color.b = 1.0;
           color.a = 0.1;
 
-          imu_marker.points.push_back(point);
-          imu_marker.colors.push_back(color);
+          // imu_marker.points.push_back(point);
+          // imu_marker.colors.push_back(color);
         }
       }
 
@@ -1146,6 +1233,14 @@ namespace hdl_graph_slam
     // Debug Variables
     ros::Publisher debug_loop_closer_target_pub;
     ros::Publisher debug_loop_closer_source_pub;
+    std::mutex debug_loop_closure_keyframe_mutex; // 솔직히 이걸 뮤택스로 막아줘야하는지 잘 모르겠지만 일딴 써
+    ros::Publisher debug_loop_closure_target_pose_pub;
+    ros::Publisher debug_loop_closure_source_pose_pub;
+    tf2_ros::TransformBroadcaster debug_tf2_tf_broadcaster;
+
+    
+
+
 
     // ROS
     ros::NodeHandle nh;
