@@ -541,7 +541,7 @@ namespace pclomp
       double min_covar_eigvalue_mult_;
 
       /** \brief Voxel structure containing all leaf nodes (includes voxels with less than a sufficient number of points). */
-	  Map leaves_;
+	    Map leaves_;
 
       /** \brief Point cloud containing centroids of voxels containing at least minimum number of points. */
       PointCloudPtr voxel_centroids_;

@@ -1238,6 +1238,11 @@ namespace hdl_graph_slam
     ros::Publisher debug_loop_closure_source_pose_pub;
     tf2_ros::TransformBroadcaster debug_tf2_tf_broadcaster;
 
+
+    // NDT Variables
+    std::map<size_t, Leaf> leaf_map;
+    
+
     
 
 
