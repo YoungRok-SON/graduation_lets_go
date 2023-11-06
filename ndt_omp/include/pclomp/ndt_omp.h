@@ -73,15 +73,15 @@ namespace pclomp
 	protected:
 
 		typedef typename pcl::Registration<PointSource, PointTarget>::PointCloudSource PointCloudSource;
-		typedef typename PointCloudSource::Ptr PointCloudSourcePtr;
-		typedef typename PointCloudSource::ConstPtr PointCloudSourceConstPtr;
+		typedef typename PointCloudSource::Ptr 										   PointCloudSourcePtr;
+		typedef typename PointCloudSource::ConstPtr 								   PointCloudSourceConstPtr;
 
 		typedef typename pcl::Registration<PointSource, PointTarget>::PointCloudTarget PointCloudTarget;
-		typedef typename PointCloudTarget::Ptr PointCloudTargetPtr;
-		typedef typename PointCloudTarget::ConstPtr PointCloudTargetConstPtr;
+		typedef typename PointCloudTarget::Ptr 										   PointCloudTargetPtr;
+		typedef typename PointCloudTarget::ConstPtr 								   PointCloudTargetConstPtr;
 
-		typedef pcl::PointIndices::Ptr PointIndicesPtr;
-		typedef pcl::PointIndices::ConstPtr PointIndicesConstPtr;
+		typedef pcl::PointIndices::Ptr												   PointIndicesPtr;
+		typedef pcl::PointIndices::ConstPtr 										   PointIndicesConstPtr;
 
 		/** \brief Typename of searchable voxel grid containing mean and covariance. */
 		typedef pclomp::VoxelGridCovariance<PointTarget> TargetGrid;
@@ -119,8 +119,7 @@ namespace pclomp
 		/** \brief Provide a pointer to the input target (e.g., the point cloud that we want to align the input source to).
 		  * \param[in] cloud the input point cloud target
 		  */
-		inline void
-			setInputTarget(const PointCloudTargetConstPtr &cloud)
+		inline void setInputTarget(const PointCloudTargetConstPtr &cloud)
 		{
 			pcl::Registration<PointSource, PointTarget>::setInputTarget(cloud);
 			init();

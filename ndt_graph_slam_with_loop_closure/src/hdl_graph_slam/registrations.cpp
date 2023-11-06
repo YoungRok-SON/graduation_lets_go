@@ -120,7 +120,7 @@ namespace hdl_graph_slam
         int num_threads = pnh.param<int>("reg_num_threads", 0);
         std::string nn_search_method = pnh.param<std::string>("reg_nn_search_method", "DIRECT7");
         std::cout << "registration: NDT_OMP " << nn_search_method << " " << ndt_resolution << " (" << num_threads << " threads)" << std::endl;
-        pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr ndt(new pclomp::NormalDistributionsTransform<PointT, PointT>());
+        pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr ndt(new pclomp::NormalDistributionsTransform<PointT, PointT>()); // NDT_OMP와 NDT와 다른점은 pclomp::NormalDistributionsTransform를 사용
         if (num_threads > 0)
         {
           ndt->setNumThreads(num_threads);

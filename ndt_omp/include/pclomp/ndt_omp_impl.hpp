@@ -177,11 +177,11 @@ int omp_get_thread_num() { return 0; }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename PointSource, typename PointTarget> double
-pclomp::NormalDistributionsTransform<PointSource, PointTarget>::computeDerivatives(Eigen::Matrix<double, 6, 1> &score_gradient,
-	Eigen::Matrix<double, 6, 6> &hessian,
-	PointCloudSource &trans_cloud,
-	Eigen::Matrix<double, 6, 1> &p,
-	bool compute_hessian)
+pclomp::NormalDistributionsTransform<PointSource, PointTarget>::computeDerivatives( Eigen::Matrix<double, 6, 1> &score_gradient,
+                                                                                    Eigen::Matrix<double, 6, 6> &hessian,
+                                                                                    PointCloudSource &trans_cloud,
+                                                                                    Eigen::Matrix<double, 6, 1> &p,
+                                                                                    bool compute_hessian)
 {
 	score_gradient.setZero();
 	hessian.setZero();
@@ -482,12 +482,12 @@ pclomp::NormalDistributionsTransform<PointSource, PointTarget>::computePointDeri
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename PointSource, typename PointTarget> double
-pclomp::NormalDistributionsTransform<PointSource, PointTarget>::updateDerivatives(Eigen::Matrix<double, 6, 1> &score_gradient,
-	Eigen::Matrix<double, 6, 6> &hessian,
-	const Eigen::Matrix<float, 4, 6> &point_gradient4,
-	const Eigen::Matrix<float, 24, 6> &point_hessian_,
-	const Eigen::Vector3d &x_trans, const Eigen::Matrix3d &c_inv,
-	bool compute_hessian) const
+pclomp::NormalDistributionsTransform<PointSource, PointTarget>::updateDerivatives( Eigen::Matrix<double, 6, 1> &score_gradient,
+	                                                                                 Eigen::Matrix<double, 6, 6> &hessian,
+	                                                                                 const Eigen::Matrix<float, 4, 6> &point_gradient4,
+	                                                                                 const Eigen::Matrix<float, 24, 6> &point_hessian_,
+	                                                                                 const Eigen::Vector3d &x_trans, const Eigen::Matrix3d &c_inv,
+	                                                                                 bool compute_hessian) const
 {
 	Eigen::Matrix<float, 1, 4> x_trans4( x_trans[0], x_trans[1], x_trans[2], 0.0f );
 	Eigen::Matrix4f c_inv4 = Eigen::Matrix4f::Zero();
@@ -538,8 +538,8 @@ pclomp::NormalDistributionsTransform<PointSource, PointTarget>::updateDerivative
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename PointSource, typename PointTarget> void
-pclomp::NormalDistributionsTransform<PointSource, PointTarget>::computeHessian (Eigen::Matrix<double, 6, 6> &hessian,
-                                                                             PointCloudSource &trans_cloud, Eigen::Matrix<double, 6, 1> &)
+pclomp::NormalDistributionsTransform<PointSource, PointTarget>::computeHessian ( Eigen::Matrix<double, 6, 6> &hessian,
+                                                                                 PointCloudSource &trans_cloud, Eigen::Matrix<double, 6, 1> &)
 {
   // Original Point and Transformed Point
   PointSource x_pt, x_trans_pt;
@@ -611,11 +611,11 @@ pclomp::NormalDistributionsTransform<PointSource, PointTarget>::computeHessian (
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 template<typename PointSource, typename PointTarget> void
-pclomp::NormalDistributionsTransform<PointSource, PointTarget>::updateHessian (Eigen::Matrix<double, 6, 6> &hessian,
-	const Eigen::Matrix<double, 3, 6> &point_gradient_,
-	const Eigen::Matrix<double, 18, 6> &point_hessian_,
-	const Eigen::Vector3d &x_trans,
-	const Eigen::Matrix3d &c_inv) const
+pclomp::NormalDistributionsTransform<PointSource, PointTarget>::updateHessian ( Eigen::Matrix<double, 6, 6> &hessian,
+	                                                                              const Eigen::Matrix<double, 3, 6> &point_gradient_,
+	                                                                              const Eigen::Matrix<double, 18, 6> &point_hessian_,
+	                                                                              const Eigen::Vector3d &x_trans,
+	                                                                              const Eigen::Matrix3d &c_inv) const
 {
   Eigen::Vector3d cov_dxd_pi;
   // e^(-d_2/2 * (x_k - mu_k)^T Sigma_k^-1 (x_k - mu_k)) Equation 6.9 [Magnusson 2009]
