@@ -80,6 +80,8 @@ namespace hdl_graph_slam
 
     using PointT = KeyFrame::PointT;
     using Ptr = std::shared_ptr<KeyFrameSnapshot>;
+    typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
+    typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
 
     KeyFrameSnapshot(const KeyFrame::Ptr &key);
     KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointT>::ConstPtr &cloud);
@@ -89,6 +91,8 @@ namespace hdl_graph_slam
   public:
     Eigen::Isometry3d pose;                  // pose estimated by graph optimization
     pcl::PointCloud<PointT>::ConstPtr cloud; // point cloud
+    // For new features
+    LeafMap leaves;
   };
 
 } // namespace hdl_graph_slam

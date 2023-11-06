@@ -137,6 +137,7 @@ namespace hdl_graph_slam
       debug_loop_closer_source_pub = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
       debug_loop_closure_target_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
       debug_loop_closure_source_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
+      ndt_marker_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/ndt_marker", 1, true);
 
       if (private_nh.param<bool>("enable_gps", true))
       {
@@ -154,6 +155,7 @@ namespace hdl_graph_slam
       map_points_pub = mt_nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/map_points", 1, true);
       read_until_pub = mt_nh.advertise<std_msgs::Header>("/hdl_graph_slam/read_until", 32);
 
+      
       load_service_server = mt_nh.advertiseService("/hdl_graph_slam/load", &HdlGraphSlamNodelet::load_service, this);
       dump_service_server = mt_nh.advertiseService("/hdl_graph_slam/dump", &HdlGraphSlamNodelet::dump_service, this);
       save_map_service_server = mt_nh.advertiseService("/hdl_graph_slam/save_map", &HdlGraphSlamNodelet::save_map_service, this);
@@ -163,6 +165,7 @@ namespace hdl_graph_slam
       double map_cloud_update_interval = private_nh.param<double>("map_cloud_update_interval", 10.0);
       optimization_timer = mt_nh.createWallTimer(ros::WallDuration(graph_update_interval), &HdlGraphSlamNodelet::optimization_timer_callback, this); //3초마다 한번씩 퍼블리쉬
       map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(map_cloud_update_interval), &HdlGraphSlamNodelet::map_points_publish_timer_callback, this);
+      ndt_map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(map_cloud_update_interval), &HdlGraphSlamNodelet::ndt_marker_publish_timer_callback, this); // Debug
     }
 
   private:
@@ -642,7 +645,89 @@ namespace hdl_graph_slam
       map_points_pub.publish(cloud_msg);
     }
 
+    /**
+     * @brief Generate marker array for visualization of NDT Map
+     * @param evnet
+     */
+    void ndt_marker_publish_timer_callback(const ros::WallTimerEvent &event)
+    {
+      if (!ndt_marker_pub.getNumSubscribers() || !graph_updated)
+      {
+        return;
+      }
 
+      std::vector<KeyFrameSnapshot::Ptr> snapshot;
+
+      // move keyframes_snapshot to snapshot for data consistency
+      keyframes_snapshot_mutex.lock();
+      snapshot = keyframes_snapshot;
+      keyframes_snapshot_mutex.unlock();
+
+      // Generate 
+      visualization_msgs::MarkerArrayPtr marker_array(new visualization_msgs::MarkerArray());
+      visualization_msgs::Marker marker;
+      marker.header.frame_id = map_frame_id;
+      marker.header.stamp = ros::Time::now();
+      marker.ns = "ndt_map";
+      
+      marker.type = visualization_msgs::Marker::CUBE_LIST;
+      marker.action = visualization_msgs::Marker::ADD;
+      
+      // Get a keyframe
+      for (const auto  &keyframe : snapshot)
+      {
+        // Get a Pose of keyframe
+        Eigen::Isometry3d pose = keyframe->pose;
+
+        // Set markers for each leaf
+        for (const auto &leaf : keyframe->leaves)
+        {
+          // Get a properties of Leaf
+          auto mean = leaf.second.getMean();
+          auto cov = leaf.second.getCov();
+          auto eigen_vectors = leaf.second.getEvecs();
+          auto eigen_values = leaf.second.getEvals();
+
+          // Calculate transformed position of leaf
+          Eigen::Vector3d transformed_mean = pose * mean;
+          // Calculate transformed covariance of leaf
+          Eigen::Matrix3d transformed_cov = pose.rotation() * cov * pose.rotation().transpose();
+          // Calculate transformed eigen vectors of leaf
+          Eigen::Matrix3d transformed_eigen_vectors = pose.rotation() * eigen_vectors;
+
+          // Set properties
+          marker.id = 0; 
+          marker.lifetime = ros::Duration(0.0);
+          marker.frame_locked = true;
+          // Set color as the heigth of the leaf
+          marker.color.r = 0.0;
+          marker.color.g = 1.0 - leaf.second.getMean()(2) * 0.01;
+          marker.color.b = leaf.second.getMean()(2) * 0.01;
+          marker.color.a = 1.0;
+          
+          // Set center position of marker as transformd mean of leaf
+          marker.pose.position.x = transformed_mean(0);
+          marker.pose.position.y = transformed_mean(1);
+          marker.pose.position.z = transformed_mean(2);
+
+          // Set a transformed Orientation of eigen vectors
+          Eigen::Quaterniond q(transformed_eigen_vectors);
+          q.normalize();
+          marker.pose.orientation.x = q.x();
+          marker.pose.orientation.y = q.y();
+          marker.pose.orientation.z = q.z();
+          marker.pose.orientation.w = q.w();
+
+          // Set a scale of marker
+          marker.scale.x = std::sqrt(eigen_values(0, 0)) * 3.0;
+          marker.scale.y = std::sqrt(eigen_values(1, 1)) * 3.0;
+          marker.scale.z = std::sqrt(eigen_values(2, 2)) * 3.0;
+          // Add marker to marker array
+          marker_array->markers.push_back(marker);
+        }
+      }
+      ndt_marker_pub.publish(marker_array);
+    }
       
     /**
      * @brief this methods adds all the data in the queues to the pose graph, and then optimizes the pose graph
@@ -1276,6 +1361,7 @@ namespace hdl_graph_slam
     ros::NodeHandle private_nh;
     ros::WallTimer optimization_timer;
     ros::WallTimer map_publish_timer;
+    ros::WallTimer ndt_map_publish_timer;
 
     std::unique_ptr<message_filters::Subscriber<geometry_msgs::PoseStamped>> odom_sub;
     std::unique_ptr<message_filters::Subscriber<sensor_msgs::PointCloud2>> cloud_sub;
@@ -1301,6 +1387,7 @@ namespace hdl_graph_slam
     std::string points_topic;
     ros::Publisher read_until_pub;
     ros::Publisher map_points_pub;
+    ros::Publisher ndt_marker_pub; // Debug Publisher
 
     tf::TransformListener tf_listener;
 
