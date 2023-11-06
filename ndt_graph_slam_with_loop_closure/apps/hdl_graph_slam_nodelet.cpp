@@ -137,7 +137,6 @@ namespace hdl_graph_slam
       debug_loop_closer_source_pub = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
       debug_loop_closure_target_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
       debug_loop_closure_source_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
-      ndt_marker_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/ndt_marker", 1, true);
 
       if (private_nh.param<bool>("enable_gps", true))
       {
@@ -148,6 +147,9 @@ namespace hdl_graph_slam
 
       // New Features
       leaf_voxel_size = private_nh.param<double>("leaf_voxel_size", 0.5);
+      use_ndt_leaves = private_nh.param<bool>("use_ndt_leaves", true);
+      // ndt_map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(3.0), &HdlGraphSlamNodelet::ndt_marker_publish_timer_callback, this); // Debug
+      // ndt_marker_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/ndt_marker", 1, true);
 
       // publishers
       markers_pub = mt_nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
@@ -165,7 +167,6 @@ namespace hdl_graph_slam
       double map_cloud_update_interval = private_nh.param<double>("map_cloud_update_interval", 10.0);
       optimization_timer = mt_nh.createWallTimer(ros::WallDuration(graph_update_interval), &HdlGraphSlamNodelet::optimization_timer_callback, this); //3초마다 한번씩 퍼블리쉬
       map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(map_cloud_update_interval), &HdlGraphSlamNodelet::map_points_publish_timer_callback, this);
-      ndt_map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(map_cloud_update_interval), &HdlGraphSlamNodelet::ndt_marker_publish_timer_callback, this); // Debug
     }
 
   private:
@@ -206,15 +207,16 @@ namespace hdl_graph_slam
       // New element of KeyFrame Leaves
       LeafMap leaves;
       // Leaves 값 생성
-      if (private_nh.param<bool>("use_ndt_leaves", false))
+      if (use_ndt_leaves)
       {
-        // Voxel Grid Covariance
-        pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
-        generate_ndt_scan.setInputCloud(cloud);
-        generate_ndt_scan.setLeafSize(leaf_voxel_size, leaf_voxel_size, leaf_voxel_size);
-        generate_ndt_scan.setMinPointPerVoxel(10);
-        generate_ndt_scan.filter(*cloud);
-        leaves = generate_ndt_scan.getLeaves();
+        // ROS_INFO("Generate NDT Leaves");
+        // // Voxel Grid Covariance
+        // pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
+        // generate_ndt_scan.setInputCloud(cloud);
+        // generate_ndt_scan.setLeafSize(leaf_voxel_size, leaf_voxel_size, leaf_voxel_size);
+        // generate_ndt_scan.setMinPointPerVoxel(10);
+        // generate_ndt_scan.filter(*cloud);
+        // leaves = generate_ndt_scan.getLeaves();
       }
       KeyFrame::Ptr keyframe(new KeyFrame(stamp, odom, accum_d, cloud, leaves)); // Keyframe 구조체에 대이터를 넣은 다음에
 
@@ -623,7 +625,7 @@ namespace hdl_graph_slam
       {
         return;
       }
-
+      ROS_INFO("Generate Map Cloud");
       std::vector<KeyFrameSnapshot::Ptr> snapshot;
 
       keyframes_snapshot_mutex.lock();
@@ -649,8 +651,9 @@ namespace hdl_graph_slam
      * @brief Generate marker array for visualization of NDT Map
      * @param evnet
      */
-    void ndt_marker_publish_timer_callback(const ros::WallTimerEvent &event)
+   /*  void ndt_marker_publish_timer_callback(const ros::WallTimerEvent &event)
     {
+      ROS_INFO("Generate NDT Map Marker");
       if (!ndt_marker_pub.getNumSubscribers() || !graph_updated)
       {
         return;
@@ -727,7 +730,7 @@ namespace hdl_graph_slam
         }
       }
       ndt_marker_pub.publish(marker_array);
-    }
+    } */
       
     /**
      * @brief this methods adds all the data in the queues to the pose graph, and then optimizes the pose graph
@@ -1351,10 +1354,8 @@ namespace hdl_graph_slam
     LeafMap leaves;
     Leaf    leaf;
     float   leaf_voxel_size;
+    bool    use_ndt_leaves;
     
-
-  
-
     // ROS
     ros::NodeHandle nh;
     ros::NodeHandle mt_nh;
