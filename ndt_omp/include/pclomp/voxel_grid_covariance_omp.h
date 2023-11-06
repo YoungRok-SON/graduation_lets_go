@@ -222,6 +222,17 @@ namespace pclomp
         filter_name_ = "VoxelGridCovariance";
       }
 
+      // /** \brief Set resolution for ndt grid generation.
+      //   * \param[in]  leaf_size Size of Voxel grid leaf
+      //   */
+      // inline void
+      // setLeafSize (float leaf_size)
+      // {
+      //   leaf_size_[0] = leaf_size;
+      //   leaf_size_[1] = leaf_size;
+      //   leaf_size_[2] = leaf_size;
+      // }
+
       /** \brief Set the minimum number of points required for a cell to be used (must be 3 or greater for covariance calculation).
         * \param[in] min_points_per_voxel the minimum number of points for required for a voxel to be used
         */

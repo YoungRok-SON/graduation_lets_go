@@ -52,6 +52,9 @@
   <node pkg="nodelet" type="nodelet" name="hdl_graph_slam_nodelet" args="load hdl_graph_slam/HdlGraphSlamNodelet $(arg nodelet_manager)">
     <param name="points_topic" value="$(arg points_topic)" />
     <param name="published_odom_topic" value="$(arg odom_topic)" />
+    <!-- New Features -->
+    <param name="use_ndt_leaves" value="true" />
+    <param name="leaf_voxel_size" value="0.5" />
     <!-- frame settings -->
     <param name="map_frame_id" value="$(arg map_frame_id)" />
     <param name="odom_frame_id" value="$(arg lidar_odom_frame_id)" />

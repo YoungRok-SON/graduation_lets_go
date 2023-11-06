@@ -8,6 +8,9 @@
 #include <pcl/point_cloud.h>
 #include <boost/optional.hpp>
 
+// For New Featuers
+#include <pclomp/ndt_omp.h>
+
 /* 
 KeyFrame은 로봇이 환경에서 얻은 원시 데이터와 관련 메타데이터를 저장
 KeyFrameSnapshot은 SLAM 처리 후의 최적화된 결과를 저장
@@ -36,8 +39,11 @@ namespace hdl_graph_slam
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     using PointT = pcl::PointXYZI;
     using Ptr = std::shared_ptr<KeyFrame>;
+    typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
+    typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
 
     KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud);
+    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud, LeafMap leaves);
     KeyFrame(const std::string &directory, g2o::HyperGraph *graph);
     virtual ~KeyFrame();
 
@@ -59,6 +65,9 @@ namespace hdl_graph_slam
     boost::optional<Eigen::Quaterniond> orientation; //
 
     g2o::VertexSE3 *node; // node instance
+
+    // For new features
+    LeafMap leaves;
   };
 
   /**

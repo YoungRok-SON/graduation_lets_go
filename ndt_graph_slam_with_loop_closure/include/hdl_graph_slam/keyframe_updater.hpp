@@ -6,6 +6,7 @@
 #include <ros/ros.h>
 #include <Eigen/Dense>
 
+
 namespace hdl_graph_slam {
 
 /**

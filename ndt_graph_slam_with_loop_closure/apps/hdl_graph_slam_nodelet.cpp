@@ -26,7 +26,6 @@
 #include <tf2_ros/transform_broadcaster.h>
 
 #include <std_msgs/Time.h>
-// #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <nmea_msgs/Sentence.h>
 #include <sensor_msgs/Imu.h>
@@ -62,6 +61,10 @@
 #include <g2o/edge_se3_priorvec.hpp>
 #include <g2o/edge_se3_priorquat.hpp>
 
+// For New Features
+#include <pclomp/ndt_omp.h>
+#include <pclomp/voxel_grid_covariance_omp.h>
+
 namespace hdl_graph_slam
 {
 
@@ -70,6 +73,8 @@ namespace hdl_graph_slam
   public:
     typedef pcl::PointXYZI PointT;
     typedef message_filters::sync_policies::ApproximateTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> ApproxSyncPolicy;
+    typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
+    typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
 
     HdlGraphSlamNodelet() {}
     virtual ~HdlGraphSlamNodelet() {}
@@ -140,6 +145,9 @@ namespace hdl_graph_slam
         navsat_sub = mt_nh.subscribe("/gps/navsat", 1024, &HdlGraphSlamNodelet::navsat_callback, this);
       }
 
+      // New Features
+      leaf_voxel_size = private_nh.param<double>("leaf_voxel_size", 0.5);
+
       // publishers
       markers_pub = mt_nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
       odom2map_pub = mt_nh.advertise<geometry_msgs::TransformStamped>("/hdl_graph_slam/odom2pub", 16);
@@ -192,7 +200,20 @@ namespace hdl_graph_slam
       }
 
       double accum_d = keyframe_updater->get_accum_distance();
-      KeyFrame::Ptr keyframe(new KeyFrame(stamp, odom, accum_d, cloud)); // Keyframe 구조체에 대이터를 넣은 다음에
+      // New element of KeyFrame Leaves
+      LeafMap leaves;
+      // Leaves 값 생성
+      if (private_nh.param<bool>("use_ndt_leaves", false))
+      {
+        // Voxel Grid Covariance
+        pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
+        generate_ndt_scan.setInputCloud(cloud);
+        generate_ndt_scan.setLeafSize(leaf_voxel_size, leaf_voxel_size, leaf_voxel_size);
+        generate_ndt_scan.setMinPointPerVoxel(10);
+        generate_ndt_scan.filter(*cloud);
+        leaves = generate_ndt_scan.getLeaves();
+      }
+      KeyFrame::Ptr keyframe(new KeyFrame(stamp, odom, accum_d, cloud, leaves)); // Keyframe 구조체에 대이터를 넣은 다음에
 
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
       keyframe_queue.push_back(keyframe); // 생성한 키프레임 객체를 큐에 넣기
@@ -621,6 +642,8 @@ namespace hdl_graph_slam
       map_points_pub.publish(cloud_msg);
     }
 
+
+      
     /**
      * @brief this methods adds all the data in the queues to the pose graph, and then optimizes the pose graph
      * @param event
@@ -1240,12 +1263,12 @@ namespace hdl_graph_slam
 
 
     // NDT Variables
-    std::map<size_t, Leaf> leaf_map;
+    LeafMap leaves;
+    Leaf    leaf;
+    float   leaf_voxel_size;
     
 
-    
-
-
+  
 
     // ROS
     ros::NodeHandle nh;
