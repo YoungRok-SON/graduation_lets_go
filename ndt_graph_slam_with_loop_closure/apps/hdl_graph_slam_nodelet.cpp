@@ -231,10 +231,12 @@ namespace hdl_graph_slam
 
       trans_odom2map_mutex.lock();
       Eigen::Isometry3d odom2map(trans_odom2map.cast<double>()); // trans_odom2map 변수 값을 double로 캐스팅해서 odom2map이라는 변수 생성
-      // trans_odom2map은 어디서 가져오는거? -> delta transformatoin
+      // trans_odom2map은 어디서 가져오는거? -> 제일 마지막으로 입력된 키프레임의 최적화된 포즈와 마지막으로 들어온 오도메트리 포즈 사이의 변환값 
+      // 이 값을 이용해서 오돔 좌표를 그래프 좌표로 보정해줌(drift 보정이라고 생각하면 편할듯?)
       trans_odom2map_mutex.unlock();
 
-      std::cout << "flush_keyframe_queue - keyframes len:" << keyframes.size() << std::endl; //Keyframe queue도 있는데 이건 왜 따로 벡터로 지정해놨지?
+      std::cout << "flush_keyframe_queue - keyframes len:" << keyframes.size() << std::endl; 
+      //Keyframe queue도 있는데 이건 왜 따로 벡터로 지정해놨지? -> keyframe_queue는 callback에서 계속 쌓이고 이 함수 마지막에 그래프에 들어간 keyframe만큼 지워짐. 그리고 keyframes 벡터에 넣어줌.
       int num_processed = 0;
       for (int i = 0; i < std::min<int>(keyframe_queue.size(), max_keyframes_per_update); i++) // Keyframe queue에 있는 개수가 min보다 작으면 개수만큼만 진행
       {
@@ -272,7 +274,7 @@ namespace hdl_graph_slam
 
         if (i == 0 && keyframes.empty()) // 만약 Keyframe들을 모아놓는 벡터에 아무것도 없으면 그냥 넘어감
         {
-          continue; // 이 std::vector<KeyFrame::Ptr> 형태의 변수 용도가 뭔지? 
+          continue; // 이 std::vector<KeyFrame::Ptr> 형태의 변수 용도가 뭔지? -> 키프레임들을 모아놓는 벡터
         }
 
         // add edge between consecutive keyframes
@@ -280,7 +282,7 @@ namespace hdl_graph_slam
         // keyframe_queue는 어디선가 계속 초기화가 되나?
         // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
 
-        Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 현재와 이전 사이의 상대 포즈 구하고
+        Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
         Eigen::MatrixXd information = inf_calclator->calc_information_matrix(keyframe->cloud, prev_keyframe->cloud, relative_pose);
         // 뭐 어떻게 해서 information matrix까지 구함 -> 나중에 읽어볼거
         auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, information);
@@ -799,9 +801,9 @@ namespace hdl_graph_slam
 
       // publish tf
       const auto &keyframe = keyframes.back();
-      Eigen::Isometry3d trans = keyframe->node->estimate() * keyframe->odom.inverse();
+      Eigen::Isometry3d trans = keyframe->node->estimate() * keyframe->odom.inverse(); // 이건 어떤 값? -> 오도메트리와 계산된 그래프를 기반으로 최적화된 위치 결과 사이의 변환, 결국 누적 오차 없에는 역할
       trans_odom2map_mutex.lock();
-      trans_odom2map = trans.matrix().cast<float>(); // 이 값은 왜 이렇게 해놓지?
+      trans_odom2map = trans.matrix().cast<float>(); // 이 값은 왜 이렇게 해놓지?-> 다음  keyframe이 들어올 때 이전 keyframe과의 차이를 계산하기 위해서
       trans_odom2map_mutex.unlock();
 
       // 벡터인 Keyframes에 있는 객체들을 복사해서 snapshot이라는 벡터 컨테이너에 KeyFrameSnapshot이라는 형태로 저장

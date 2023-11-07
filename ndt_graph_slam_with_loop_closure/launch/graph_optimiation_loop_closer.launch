@@ -44,7 +44,7 @@
     <param name="statistical_mean_k" value="30" />
     <param name="statistical_stddev" value="1.2" />
     <param name="radius_radius" value="0.4" />
-    <param name="radius_min_neighbors" value="15" />
+    <param name="radius_min_neighbors" value="25" />
   </node>
 
 
