@@ -6,6 +6,7 @@
 #include <memory>
 #include <iomanip>
 #include <iostream>
+#include <algorithm>
 #include <unordered_map>
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
@@ -13,6 +14,8 @@
 #include <boost/algorithm/string.hpp>
 #include <Eigen/Dense>
 #include <pcl/io/pcd_io.h>
+#include <pcl/common/common.h>
+
 
 #include <ros/ros.h>
 #include <geodesy/utm.h>
@@ -149,8 +152,8 @@ namespace hdl_graph_slam
       leaf_voxel_size = private_nh.param<double>("leaf_voxel_size", 0.5);
       use_ndt_leaves = private_nh.param<bool>("use_ndt_leaves", true);
       // ndt_map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(3.0), &HdlGraphSlamNodelet::ndt_marker_publish_timer_callback, this); // Debug
-      // ndt_marker_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/ndt_marker", 1, true);
-
+      ndt_marker_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/ndt_marker", 1, true);
+      ndt_leaf_min_scale = private_nh.param<double>("ndt_leaf_min_scale", 0.01);
       // publishers
       markers_pub = mt_nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
       odom2map_pub = mt_nh.advertise<geometry_msgs::TransformStamped>("/hdl_graph_slam/odom2pub", 16);
@@ -205,20 +208,8 @@ namespace hdl_graph_slam
 
       double accum_d = keyframe_updater->get_accum_distance();
       // New element of KeyFrame Leaves
-      LeafMap leaves;
-      // Leaves 값 생성
-      if (use_ndt_leaves)
-      {
-        // ROS_INFO("Generate NDT Leaves");
-        // // Voxel Grid Covariance
-        // pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
-        // generate_ndt_scan.setInputCloud(cloud);
-        // generate_ndt_scan.setLeafSize(leaf_voxel_size, leaf_voxel_size, leaf_voxel_size);
-        // generate_ndt_scan.setMinPointPerVoxel(10);
-        // generate_ndt_scan.filter(*cloud);
-        // leaves = generate_ndt_scan.getLeaves();
-      }
-      KeyFrame::Ptr keyframe(new KeyFrame(stamp, odom, accum_d, cloud, leaves)); // Keyframe 구조체에 대이터를 넣은 다음에
+
+      KeyFrame::Ptr keyframe(new KeyFrame(stamp, odom, accum_d, cloud)); // Keyframe 구조체에 대이터를 넣은 다음에
 
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
       keyframe_queue.push_back(keyframe); // 생성한 키프레임 객체를 큐에 넣기
@@ -641,49 +632,43 @@ namespace hdl_graph_slam
       cloud->header.frame_id = map_frame_id;
       cloud->header.stamp = snapshot.back()->cloud->header.stamp;
 
-      sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*cloud, *cloud_msg);
-
-      map_points_pub.publish(cloud_msg);
-    }
-
-    /**
-     * @brief Generate marker array for visualization of NDT Map
-     * @param evnet
-     */
-   /*  void ndt_marker_publish_timer_callback(const ros::WallTimerEvent &event)
-    {
-      ROS_INFO("Generate NDT Map Marker");
-      if (!ndt_marker_pub.getNumSubscribers() || !graph_updated)
-      {
-        return;
-      }
-
-      std::vector<KeyFrameSnapshot::Ptr> snapshot;
-
-      // move keyframes_snapshot to snapshot for data consistency
-      keyframes_snapshot_mutex.lock();
-      snapshot = keyframes_snapshot;
-      keyframes_snapshot_mutex.unlock();
-
-      // Generate 
-      visualization_msgs::MarkerArrayPtr marker_array(new visualization_msgs::MarkerArray());
-      visualization_msgs::Marker marker;
-      marker.header.frame_id = map_frame_id;
-      marker.header.stamp = ros::Time::now();
-      marker.ns = "ndt_map";
+      ROS_INFO("Map Size: %ld", cloud->size());
       
-      marker.type = visualization_msgs::Marker::CUBE_LIST;
-      marker.action = visualization_msgs::Marker::ADD;
-      
-      // Get a keyframe
-      for (const auto  &keyframe : snapshot)
+      // NDT Leaf Visualization
+      if (use_ndt_leaves)
       {
-        // Get a Pose of keyframe
-        Eigen::Isometry3d pose = keyframe->pose;
+        ROS_INFO("Generate NDT Leaves");
+        // Voxel Grid Covariance
+        // 요놈이 문제 -> 이 필터에 들어가기 전까지는 cloud도 정상적인데 
+        pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
+        generate_ndt_scan.setInputCloud(cloud);
+        generate_ndt_scan.setLeafSize(leaf_voxel_size, leaf_voxel_size, leaf_voxel_size);
+        generate_ndt_scan.setMinPointPerVoxel(10);
+        generate_ndt_scan.filter();
+        LeafMap leaves = generate_ndt_scan.getLeaves();
+        ROS_INFO("NDT Map Size: %ld", leaves.size());
+
+
+        // Generate 
+        visualization_msgs::MarkerArrayPtr marker_array(new visualization_msgs::MarkerArray());
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = map_frame_id;
+        marker.header.stamp = ros::Time(cloud->header.stamp/1000000, (cloud->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
+        marker.ns = "ndt_map";
+        
+        marker.type = visualization_msgs::Marker::SPHERE;
+        marker.action = visualization_msgs::Marker::ADD;
+        int marker_id = 0;
+
+        PointT minPt, maxPt;
+        pcl::getMinMax3D(*cloud, minPt, maxPt);
+
+        // Z축의 최소값과 최대값
+        double min_z = minPt.z;
+        double max_z = maxPt.z;
 
         // Set markers for each leaf
-        for (const auto &leaf : keyframe->leaves)
+        for (const auto &leaf : leaves)
         {
           // Get a properties of Leaf
           auto mean = leaf.second.getMean();
@@ -691,30 +676,34 @@ namespace hdl_graph_slam
           auto eigen_vectors = leaf.second.getEvecs();
           auto eigen_values = leaf.second.getEvals();
 
-          // Calculate transformed position of leaf
-          Eigen::Vector3d transformed_mean = pose * mean;
-          // Calculate transformed covariance of leaf
-          Eigen::Matrix3d transformed_cov = pose.rotation() * cov * pose.rotation().transpose();
-          // Calculate transformed eigen vectors of leaf
-          Eigen::Matrix3d transformed_eigen_vectors = pose.rotation() * eigen_vectors;
-
           // Set properties
-          marker.id = 0; 
+          marker.id = marker_id++; 
           marker.lifetime = ros::Duration(0.0);
           marker.frame_locked = true;
           // Set color as the heigth of the leaf
-          marker.color.r = 0.0;
-          marker.color.g = 1.0 - leaf.second.getMean()(2) * 0.01;
-          marker.color.b = leaf.second.getMean()(2) * 0.01;
-          marker.color.a = 1.0;
+          float ratio = (mean(2) - min_z) / (max_z - min_z); //(height - min_height) / (max_height - min_height);
+          double r, g, b;
+          if (ratio < 0.5) { // 절반 이하일 경우 빨간색에서 초록색으로 변화
+              r = 1.0 - 2 * ratio;
+              g = 2 * ratio;
+              b = 0.0;
+          } else { // 절반 이상일 경우 초록색에서 파란색으로 변화
+              r = 0.0;
+              g = 1.0 - 2 * (ratio - 0.5);
+              b = 2 * (ratio - 0.5);
+          }
+          marker.color.r = r;
+          marker.color.g = g;
+          marker.color.b = b;
+          marker.color.a = 0.5;
           
           // Set center position of marker as transformd mean of leaf
-          marker.pose.position.x = transformed_mean(0);
-          marker.pose.position.y = transformed_mean(1);
-          marker.pose.position.z = transformed_mean(2);
+          marker.pose.position.x = mean(0);
+          marker.pose.position.y = mean(1);
+          marker.pose.position.z = mean(2);
 
           // Set a transformed Orientation of eigen vectors
-          Eigen::Quaterniond q(transformed_eigen_vectors);
+          Eigen::Quaterniond q(eigen_vectors);
           q.normalize();
           marker.pose.orientation.x = q.x();
           marker.pose.orientation.y = q.y();
@@ -722,15 +711,28 @@ namespace hdl_graph_slam
           marker.pose.orientation.w = q.w();
 
           // Set a scale of marker
-          marker.scale.x = std::sqrt(eigen_values(0, 0)) * 3.0;
-          marker.scale.y = std::sqrt(eigen_values(1, 1)) * 3.0;
-          marker.scale.z = std::sqrt(eigen_values(2, 2)) * 3.0;
+          marker.scale.x = std::max(std::sqrt(eigen_values(0, 0)) * 3.0, ndt_leaf_min_scale);
+          marker.scale.y = std::max(std::sqrt(eigen_values(1, 1)) * 3.0, ndt_leaf_min_scale);
+          marker.scale.z = std::max(std::sqrt(eigen_values(2, 2)) * 3.0, ndt_leaf_min_scale);
+          /* 코드에서 3.0을 곱해주는 것은 고유값(eigenvalues)의 제곱근에 대한 스케일을 조정하는 곱셈 계수입니다.
+             고유값은 공분산 행렬의 주성분(principal components)의 분산을 나타냅니다. 여기서 제곱근을 취하면 해당 방향의 표준편차(standard deviation)가 됩니다.
+             일반적으로 1 표준편차는 정규 분포의 약 68%를 포함합니다, 2 표준편차는 약 95%를, 그리고 3 표준편차는 약 99.7%를 포함합니다.
+             따라서 여기서 3.0을 곱해주는 것은 마커가 해당 축에 대한 데이터 포인트의 분포를 3 표준편차 범위 내에서 표현하길 원한다는 것을 나타냅니다.
+             이는 해당 마커가 해당 축을 따라서 원본 데이터의 대부분을 포괄하는 크기를 갖도록 하기 위함입니다.
+             간단히 말해, 이 계수는 rviz에서 마커의 가시성을 높이고, 더 넓은 범위의 데이터를 시각화하기 위해 사용됩니다. 
+            */
+
           // Add marker to marker array
           marker_array->markers.push_back(marker);
         }
+        ndt_marker_pub.publish(marker_array);
+        ROS_INFO("Marker Publish Done");
       }
-      ndt_marker_pub.publish(marker_array);
-    } */
+      sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2());
+      pcl::toROSMsg(*cloud, *cloud_msg);
+      map_points_pub.publish(cloud_msg);
+    }
+
       
     /**
      * @brief this methods adds all the data in the queues to the pose graph, and then optimizes the pose graph
@@ -1355,6 +1357,7 @@ namespace hdl_graph_slam
     Leaf    leaf;
     float   leaf_voxel_size;
     bool    use_ndt_leaves;
+    double   ndt_leaf_min_scale;
     
     // ROS
     ros::NodeHandle nh;

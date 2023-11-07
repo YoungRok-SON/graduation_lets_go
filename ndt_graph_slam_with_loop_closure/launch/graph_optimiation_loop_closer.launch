@@ -33,18 +33,18 @@
     <!-- in case base_link_frame is blank, mapping will be performed in the lidar frame -->
     <param name="base_link_frame" value="base_link" />
     <!-- distance filter -->
-    <param name="use_distance_filter" value="false" />
+    <param name="use_distance_filter" value="true" />
     <param name="distance_near_thresh" value="0.1" />
-    <param name="distance_far_thresh" value="5" />
+    <param name="distance_far_thresh" value="4.0" />
     <!-- NONE, VOXELGRID, or APPROX_VOXELGRID -->
     <param name="downsample_method" value="VOXELGRID" />
-    <param name="downsample_resolution" value="0.05" />
+    <param name="downsample_resolution" value="0.08" />
     <!-- NONE, RADIUS, or STATISTICAL -->
     <param name="outlier_removal_method" value="RADIUS" />
     <param name="statistical_mean_k" value="30" />
     <param name="statistical_stddev" value="1.2" />
-    <param name="radius_radius" value="0.5" />
-    <param name="radius_min_neighbors" value="10" />
+    <param name="radius_radius" value="0.4" />
+    <param name="radius_min_neighbors" value="15" />
   </node>
 
 
@@ -54,7 +54,8 @@
     <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
     <param name="use_ndt_leaves" value="true" />
-    <param name="leaf_voxel_size" value="0.5" />
+    <param name="leaf_voxel_size" value="0.7" />
+    <param name="ndt_leaf_min_scale" value="0.0001" />
     <!-- frame settings -->
     <param name="map_frame_id" value="$(arg map_frame_id)" />
     <param name="odom_frame_id" value="$(arg lidar_odom_frame_id)" />
@@ -82,7 +83,7 @@
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />
-    <param name="reg_num_threads" value="8" />
+    <param name="reg_num_threads" value="10" />
     <param name="reg_transformation_epsilon" value="0.08"/>
     <param name="reg_maximum_iterations" value="64"/>
     <param name="reg_max_correspondence_distance" value="0.8"/>
