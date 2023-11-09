@@ -21,19 +21,29 @@ namespace hdl_graph_slam
                       accum_distance(accum_distance), 
                       cloud(cloud), 
                       node(nullptr) 
-  {}
+  {
+  }
 
   KeyFrame::KeyFrame( const ros::Time &stamp,
                       const Eigen::Isometry3d &odom, 
                       double accum_distance, 
                       const pcl::PointCloud<PointT>::ConstPtr &cloud,
-                      LeafMap leaves) : 
-                      stamp(stamp), 
-                      odom(odom), 
-                      accum_distance(accum_distance), 
+                      float leaf_size,
+                      int min_nr) :
+                      stamp(stamp),
+                      odom(odom),
+                      accum_distance(accum_distance),
                       cloud(cloud), 
                       node(nullptr),
-                      leaves(leaves) {}
+                      leaf_size(leaf_size),
+                      min_nr(min_nr)
+  {
+    generate_ndt_scan.setInputCloud(cloud);
+    generate_ndt_scan.setLeafSize(leaf_size, leaf_size, leaf_size);
+    generate_ndt_scan.setMinimumPointsNumberPerVoxel(min_nr);
+    generate_ndt_scan.filter();  
+    leaves = generate_ndt_scan.getLeaves();
+  }
 
   KeyFrame::KeyFrame(const std::string &directory, g2o::HyperGraph *graph) : stamp(), odom(Eigen::Isometry3d::Identity()), accum_distance(-1), cloud(nullptr), node(nullptr)
   {
@@ -222,7 +232,7 @@ namespace hdl_graph_slam
 
   KeyFrameSnapshot::KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointT>::ConstPtr &cloud) : pose(pose), cloud(cloud) {} // 들어온 값을 사용해서 초기화?
 
-  KeyFrameSnapshot::KeyFrameSnapshot(const KeyFrame::Ptr &key) : pose(key->node->estimate()), cloud(key->cloud),leaves(key->leaves) {}
+  KeyFrameSnapshot::KeyFrameSnapshot(const KeyFrame::Ptr &key) : pose(key->node->estimate()), cloud(key->cloud),leaves(key->leaves) {} // 최적화된 위치를 받아서 Pose를 초기화
 
   KeyFrameSnapshot::~KeyFrameSnapshot() {}
 

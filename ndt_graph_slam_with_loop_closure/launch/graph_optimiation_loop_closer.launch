@@ -38,24 +38,25 @@
     <param name="distance_far_thresh" value="4.0" />
     <!-- NONE, VOXELGRID, or APPROX_VOXELGRID -->
     <param name="downsample_method" value="VOXELGRID" />
-    <param name="downsample_resolution" value="0.08" />
+    <param name="downsample_resolution" value="0.05" />
     <!-- NONE, RADIUS, or STATISTICAL -->
     <param name="outlier_removal_method" value="RADIUS" />
     <param name="statistical_mean_k" value="30" />
     <param name="statistical_stddev" value="1.2" />
     <param name="radius_radius" value="0.4" />
-    <param name="radius_min_neighbors" value="25" />
+    <param name="radius_min_neighbors" value="12" />
   </node>
 
 
   <!-- hdl_graph_slam_nodelet -->
   <node pkg="nodelet" type="nodelet" name="hdl_graph_slam_nodelet" args="load hdl_graph_slam/HdlGraphSlamNodelet $(arg nodelet_manager)">
-    <param name="points_topic" value="$(arg points_topic)" />
+    <param name="points_topic"         value="$(arg points_topic)" />
     <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
-    <param name="use_ndt_leaves" value="true" />
-    <param name="leaf_voxel_size" value="0.7" />
+    <param name="use_ndt_leaves"     value="true" />
+    <param name="leaf_voxel_size"    value="0.5" />
     <param name="ndt_leaf_min_scale" value="0.0001" />
+    <param name="min_nr"             value="10" />
     <!-- frame settings -->
     <param name="map_frame_id" value="$(arg map_frame_id)" />
     <param name="odom_frame_id" value="$(arg lidar_odom_frame_id)" />

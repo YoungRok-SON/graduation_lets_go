@@ -208,7 +208,7 @@ namespace pclomp
       VoxelGridCovariance () :
         searchable_ (true),
         min_points_per_voxel_ (6),
-        min_covar_eigvalue_mult_ (0.01),
+        min_covar_eigvalue_mult_ (0.05),
         leaves_ (),
         voxel_centroids_ (),
         voxel_centroids_leaf_indices_ (),

@@ -10,6 +10,7 @@
 
 // For New Featuers
 #include <pclomp/ndt_omp.h>
+#include <pclomp/voxel_grid_covariance_omp.h>
 
 /* 
 KeyFrame은 로봇이 환경에서 얻은 원시 데이터와 관련 메타데이터를 저장
@@ -41,9 +42,11 @@ namespace hdl_graph_slam
     using Ptr = std::shared_ptr<KeyFrame>;
     typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
     typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
+    pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
+
 
     KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud);
-    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud, LeafMap leaves);
+    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud, float leaf_size, int min_nr);
     KeyFrame(const std::string &directory, g2o::HyperGraph *graph);
     virtual ~KeyFrame();
 
@@ -68,6 +71,8 @@ namespace hdl_graph_slam
 
     // For new features
     LeafMap leaves;
+    float   leaf_size;
+    int     min_nr;
   };
 
   /**
