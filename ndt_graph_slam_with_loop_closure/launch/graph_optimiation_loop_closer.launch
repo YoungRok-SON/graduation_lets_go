@@ -53,10 +53,13 @@
     <param name="points_topic"         value="$(arg points_topic)" />
     <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
-    <param name="use_ndt_leaves"     value="true" />
+    <param name="create_scan_ndt"     value="false" />
     <param name="leaf_voxel_size"    value="0.5" />
     <param name="ndt_leaf_min_scale" value="0.0001" />
     <param name="min_nr"             value="10" />
+
+    <!-- Debug Features -->
+
     <!-- frame settings -->
     <param name="map_frame_id" value="$(arg map_frame_id)" />
     <param name="odom_frame_id" value="$(arg lidar_odom_frame_id)" />

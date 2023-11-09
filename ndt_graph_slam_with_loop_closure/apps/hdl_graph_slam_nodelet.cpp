@@ -134,16 +134,28 @@ namespace hdl_graph_slam
       sync->registerCallback(boost::bind(&HdlGraphSlamNodelet::cloud_callback, this, _1, _2));
       imu_sub = nh.subscribe("/gpsimu_driver/imu_data", 1024, &HdlGraphSlamNodelet::imu_callback, this);
       floor_sub = nh.subscribe("/floor_detection/floor_coeffs", 1024, &HdlGraphSlamNodelet::floor_coeffs_callback, this);
-
-      // Debug Publisher
+      
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+      /* Debugging Publisher for Loop Closure */
       debug_loop_closer_target_pub       = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
       debug_loop_closer_source_pub       = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
-      debug_scan_ndt_marker_pub          = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/scan_ndt", 1, true);
       debug_loop_closure_target_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
       debug_loop_closure_source_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
-      debug_ndt_arrow_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_arrow", 1, true);
-      // debug_ndt_marker_pub = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/ndt_marker", 1, true);
+      /* Debugging Publisher for NDT Things */
+      debug_ndt_scan_arrow_marker_pub    = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan_arrow", 1, true);
+      debug_ndt_scan_marker_pub          = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
+      debug_ndt_map_marker_pub           = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
+      debug_loop_closure_sub_map_pub     = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/loop_closure_sub_map", 1, true);
+      // New Features
+      leaf_voxel_size_    = private_nh.param<double>("leaf_voxel_size", 0.5);
+      create_scan_ndt_    = private_nh.param<bool>("create_scan_ndt", false);
+      min_nr_             = private_nh.param<int>("min_nr", 10);
+      ndt_leaf_min_scale_ = private_nh.param<double>("ndt_leaf_min_scale", 0.01);
+      // To Do: (Loop Closing 이후) 맵을 잘라서 Server로 보내주거나, 일정 시간 마다 NDT 맵을 잘라서 Keyframe에 대응시켜 보내주는 콜백 추가
 
+
+
+      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       if (private_nh.param<bool>("enable_gps", true))
       {
         gps_sub = mt_nh.subscribe("/gps/geopoint", 1024, &HdlGraphSlamNodelet::gps_callback, this);
@@ -151,12 +163,6 @@ namespace hdl_graph_slam
         navsat_sub = mt_nh.subscribe("/gps/navsat", 1024, &HdlGraphSlamNodelet::navsat_callback, this);
       }
 
-      // New Features
-      leaf_voxel_size = private_nh.param<double>("leaf_voxel_size", 0.5);
-      use_ndt_leaves  = private_nh.param<bool>("use_ndt_leaves", true);
-      min_nr          = private_nh.param<int>("min_nr", 10);
-      // ndt_map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(3.0), &HdlGraphSlamNodelet::ndt_marker_publish_timer_callback, this); // Debug
-      ndt_leaf_min_scale = private_nh.param<double>("ndt_leaf_min_scale", 0.01);
       // publishers
       markers_pub = mt_nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
       odom2map_pub = mt_nh.advertise<geometry_msgs::TransformStamped>("/hdl_graph_slam/odom2pub", 16);
@@ -209,21 +215,20 @@ namespace hdl_graph_slam
       }
 
       double accum_d = keyframe_updater->get_accum_distance();
+      KeyFrame::Ptr keyframe;
       // New element of KeyFrame Leaves
-
-      KeyFrame::Ptr keyframe(new KeyFrame(stamp, odom, accum_d, cloud, leaf_voxel_size, min_nr)); // Keyframe 구조체에 대이터를 넣은 다음에
+      if(create_scan_ndt_)
+      {
+        keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, leaf_voxel_size_, min_nr_));
+        if(debug_ndt_scan_marker_pub.getNumSubscribers() || debug_ndt_scan_arrow_marker_pub.getNumSubscribers())  // Debug
+          create_marker_array_ndt(keyframe);
+      }
+      else
+        keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud)); 
 
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
       keyframe_queue.push_back(keyframe); // 생성한 키프레임 객체를 큐에 넣기
-      
-      if(debug_scan_ndt_marker_pub.getNumSubscribers())  // Debug
-      {
-        visualization_msgs::MarkerArrayPtr marker_array(new visualization_msgs::MarkerArray);
-        marker_array = create_marker_array_ndt_scan(keyframe);
-        ROS_INFO("marker_array size : %ld", marker_array->markers.size());
-        
-        debug_scan_ndt_marker_pub.publish(marker_array);
-      }
+
     }
 
     /**
@@ -625,7 +630,7 @@ namespace hdl_graph_slam
      */
     void map_points_publish_timer_callback(const ros::WallTimerEvent &event)
     {
-      if ( !(map_points_pub.getNumSubscribers() || debug_scan_ndt_marker_pub.getNumSubscribers())  || !graph_updated )
+      if ( !(map_points_pub.getNumSubscribers() || debug_ndt_map_marker_pub.getNumSubscribers())  || !graph_updated )
       {
         return;
       }
@@ -647,27 +652,31 @@ namespace hdl_graph_slam
 
       ROS_INFO("Map Size: %ld", cloud->size());
       
-      // NDT Leaf Visualization
-      // if (use_ndt_leaves)
-      // {
-      //   ROS_INFO("Generate NDT Leaves");
-      //   // Voxel Grid Covariance
-      //   // 요놈이 문제 -> 이 필터에 들어가기 전까지는 cloud도 정상적인데 
-      //   pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
-      //   generate_ndt_scan.setInputCloud(cloud);
-      //   generate_ndt_scan.setLeafSize(leaf_voxel_size, leaf_voxel_size, leaf_voxel_size);
-      //   generate_ndt_scan.setMinPointPerVoxel(10);
-      //   generate_ndt_scan.filter();
-      //   LeafMap leaves = generate_ndt_scan.getLeaves();
-      //   ROS_INFO("NDT Map Size: %ld", leaves.size());
+      // To Do : 전체 맵을 다 볼 수 있는 기능 넣기
+      // To Do : subscribe하는 경우에만 만들기
+      // To Do : Topic명 스캔, 서브맵, 전체맵에 대해 변수명 잘 구별해주기
 
-      //   // create_maker_array_ndt_whole_map() 넣기
+      // NDT Leaf Visualization
+      if(debug_ndt_map_marker_pub)
+      {
+        ROS_INFO("Generate NDT Leaves");
+        // Voxel Grid Covariance
+        // 요놈이 문제 -> 이 필터에 들어가기 전까지는 cloud도 정상적인데 
+        pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
+        generate_ndt_scan.setInputCloud(cloud);
+        generate_ndt_scan.setLeafSize(leaf_voxel_size_, leaf_voxel_size_, leaf_voxel_size_);
+        generate_ndt_scan.setMinPointPerVoxel(10);
+        generate_ndt_scan.filter();
+        LeafMap leaves = generate_ndt_scan.getLeaves();
+        ROS_INFO("NDT Map Size: %ld", leaves.size());
+
+        // create_maker_array_ndt_whole_map() 넣기
+        create_marker_array_ndt(cloud, leaves);
         
-      //   ndt_marker_pub.publish(marker_array);
-      //   ROS_INFO("Marker Publish Done");
-      // }
-      sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*cloud, *cloud_msg);
+        ROS_INFO("Marker Publish Done");
+      }
+      sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2()); 
+      pcl::toROSMsg(*cloud, *cloud_msg);  // 실행하면 cloud가 비워짐.
       map_points_pub.publish(cloud_msg);
     }
 
@@ -711,12 +720,15 @@ namespace hdl_graph_slam
         graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("loop_closure_edge_robust_kernel", "NONE"), private_nh.param<double>("loop_closure_edge_robust_kernel_size", 1.0));
         
         // Debug Publisher
-        debug_loop_closure_keyframe_mutex.lock();
+        
         if(debug_loop_closer_target_pub.getNumSubscribers() && debug_loop_closer_source_pub.getNumSubscribers())
         {
           debug_loop_closure_points_pose(loop);
         }
-        debug_loop_closure_keyframe_mutex.unlock();
+        // if(debug_loop_closure_sub_map_pub.getNumSubscribers())
+        {
+          // NDT Sub Map Visulization
+        }
       }
 
       std::copy(new_keyframes.begin(), new_keyframes.end(), std::back_inserter(keyframes));
@@ -1050,11 +1062,11 @@ namespace hdl_graph_slam
     }
 
     /**
-     * @brief create visualization marker
+     * @brief create visualization marker of SINGLE keyframe for NDT Leafs
      * @param keyframes - keyframes to visualize as markers
      * @return visualization_msgs::MarkerArray
      */
-    visualization_msgs::MarkerArrayPtr create_marker_array_ndt_scan(KeyFrame::Ptr keyframe)
+    void create_marker_array_ndt(KeyFrame::Ptr keyframe)
     {
         // Generate 
         visualization_msgs::MarkerArrayPtr marker_array(new visualization_msgs::MarkerArray());
@@ -1088,8 +1100,11 @@ namespace hdl_graph_slam
           marker.id = marker_id++; 
           marker.lifetime = ros::Duration(0.0);
           marker.frame_locked = true;
+          marker.color.r = 0.5;
+          marker.color.g = 0.0;
+          marker.color.b = 0.1;
+          marker.color.a = 0.5;
 
-          
           // Set center position of marker as transformd mean of leaf
           marker.pose.position.x = mean(0);
           marker.pose.position.y = mean(1);
@@ -1097,38 +1112,18 @@ namespace hdl_graph_slam
 
           // Set a transformed Orientation of eigen vectors
           Eigen::Quaterniond q(eigen_vectors);
-          // q.normalize();
+          q.normalize();
           marker.pose.orientation.x = q.x();
           marker.pose.orientation.y = q.y();
           marker.pose.orientation.z = q.z();
           marker.pose.orientation.w = q.w();
 
           // Set a scale of marker
+
           marker.scale.x = std::sqrt(eigen_values(0, 0)) * 2.2 ;
           marker.scale.y = std::sqrt(eigen_values(1, 1)) * 2.2 ;
-          marker.scale.z = std::sqrt(eigen_values(2, 2)) * 2.2 ;
-          // if(eigen_vectors(1, 1) < eigen_vectors(2, 2))
-          // {
-            marker.color.r = 0.5;
-            marker.color.g = 0.0;
-            marker.color.b = 0.1;
-            marker.color.a = 0.5;
-          // }
-          // else
-          // {
-            marker.color.r = 0.1;
-            marker.color.g = 0.0;
-            marker.color.b = 0.5;
-            marker.color.a = 0.5;
-          // }
-          /* 코드에서 3.0을 곱해주는 것은 고유값(eigenvalues)의 제곱근에 대한 스케일을 조정하는 곱셈 계수입니다.
-             고유값은 공분산 행렬의 주성분(principal components)의 분산을 나타냅니다. 여기서 제곱근을 취하면 해당 방향의 표준편차(standard deviation)가 됩니다.
-             일반적으로 1 표준편차는 정규 분포의 약 68%를 포함합니다, 2 표준편차는 약 95%를, 그리고 3 표준편차는 약 99.7%를 포함합니다.
-             따라서 여기서 3.0을 곱해주는 것은 마커가 해당 축에 대한 데이터 포인트의 분포를 3 표준편차 범위 내에서 표현하길 원한다는 것을 나타냅니다.
-             이는 해당 마커가 해당 축을 따라서 원본 데이터의 대부분을 포괄하는 크기를 갖도록 하기 위함입니다.
-             간단히 말해, 이 계수는 rviz에서 마커의 가시성을 높이고, 더 넓은 범위의 데이터를 시각화하기 위해 사용됩니다. 
-            */
-          // x,y,z의 값을 화살표에 넣어서 시각화를 해보자
+          marker.scale.z = std::sqrt(eigen_values(2, 2)) * 2.2 ; // scaling factor: 3.0 is scaling factor for visualization 3sigma
+          
           // Set a direction of marker
           marker_arrow.id = marker_id++; 
           marker_arrow.lifetime = ros::Duration(0.0);
@@ -1139,18 +1134,16 @@ namespace hdl_graph_slam
           marker_arrow.pose.position.x = mean(0);
           marker_arrow.pose.position.y = mean(1);
           marker_arrow.pose.position.z = mean(2);
-
         
-          q.normalize();
           marker_arrow.pose.orientation.x = q.x();
           marker_arrow.pose.orientation.y = q.y();
           marker_arrow.pose.orientation.z = q.z();
           marker_arrow.pose.orientation.w = q.w();
 
           // Set a scale of marker
-          marker_arrow.scale.x = std::sqrt(eigen_values(0, 0)) * 2.2 ;
-          marker_arrow.scale.y = std::sqrt(eigen_values(1, 1)) * 2.2 ;
-          marker_arrow.scale.z = std::sqrt(eigen_values(2, 2)) * 0.01 ;
+          marker_arrow.scale.x = marker.scale.x;
+          marker_arrow.scale.y = marker.scale.y;
+          marker_arrow.scale.z = marker.scale.z * 0.01 ; // for visualization for orientation
 
           marker_arrow.color.r = 0.5;
           marker_arrow.color.g = 0.0;
@@ -1161,36 +1154,37 @@ namespace hdl_graph_slam
           marker_array->markers.push_back(marker);
           marker_array_arrow->markers.push_back(marker_arrow);
         }
-        debug_ndt_arrow_pub.publish(marker_array_arrow);
-        return marker_array;
+        debug_ndt_scan_arrow_marker_pub.publish(marker_array_arrow);
+        debug_ndt_scan_marker_pub.publish(marker_array);
     }
 
- /*    visualization_msgs::MarkerArrayPtr create_marker_array_ndt_submap(std::vector<KeyFrame::Ptr> keyframe_vector)
+    /*
+     * @brief Publish whole accumulated NDT map for debugging.
+     * @param cloud - map cloud pointer
+     * @param leaves - NDT leaf map
+     */
+    void create_marker_array_ndt(pcl::PointCloud<PointT>::Ptr cloud,LeafMap leaves)
     {
         // Generate
         visualization_msgs::MarkerArrayPtr marker_array(new visualization_msgs::MarkerArray());
         visualization_msgs::Marker marker;
         marker.header.frame_id = "map";
-        marker.header.stamp = ros::Time(keyframe_vector.back()->cloud->header.stamp/1000000, (keyframe_vector.back()->cloud->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
+        marker.header.stamp = ros::Time(cloud->header.stamp/1000000, (cloud->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
         marker.ns = "ndt_map_scan";
         
         marker.type = visualization_msgs::Marker::SPHERE;
         marker.action = visualization_msgs::Marker::ADD;
         int marker_id = 0;
 
-
-
-        // PointT minPt, maxPt;
-        // pcl::getMinMax3D(*cloud, minPt, maxPt);
+        PointT minPt, maxPt;
+        pcl::getMinMax3D(*cloud, minPt, maxPt);
 
         // Z축의 최소값과 최대값
-        // double min_z = minPt.z;
-        // double max_z = maxPt.z;
-
-
+        double min_z = minPt.z;
+        double max_z = maxPt.z;
 
         // Set markers for each leaf
-        for (const auto &leaf : keyframe->leaves)
+        for (const auto &leaf : leaves)
         {
           // Get a properties of Leaf
           auto mean = leaf.second.getMean();
@@ -1203,17 +1197,17 @@ namespace hdl_graph_slam
           marker.lifetime = ros::Duration(0.0);
           marker.frame_locked = true;
           // Set color as the heigth of the leaf
-          // float ratio = (mean(2) - min_z) / (max_z - min_z); //(height - min_height) / (max_height - min_height);
-          // double r, g, b;
-          // if (ratio < 0.5) { // 절반 이하일 경우 빨간색에서 초록색으로 변화
-          //     r = 1.0 - 2 * ratio;
-          //     g = 2 * ratio;
-          //     b = 0.0;
-          // } else { // 절반 이상일 경우 초록색에서 파란색으로 변화
-          //     r = 0.0;
-          //     g = 1.0 - 2 * (ratio - 0.5);
-          //     b = 2 * (ratio - 0.5);
-          // }
+          float ratio = (mean(2) - min_z) / (max_z - min_z); //(height - min_height) / (max_height - min_height);
+          double r, g, b;
+          if (ratio < 0.5) { // 절반 이하일 경우 빨간색에서 초록색으로 변화
+              r = 1.0 - 2 * ratio;
+              g = 2 * ratio;
+              b = 0.0;
+          } else { // 절반 이상일 경우 초록색에서 파란색으로 변화
+              r = 0.0;
+              g = 1.0 - 2 * (ratio - 0.5);
+              b = 2 * (ratio - 0.5);
+          }
           marker.color.r = 0.1;
           marker.color.g = 0.0;
           marker.color.b = 0.5;
@@ -1233,32 +1227,15 @@ namespace hdl_graph_slam
           marker.pose.orientation.w = q.w();
 
           // Set a scale of marker
-          marker.scale.x = std::max(std::sqrt(eigen_values(0, 0)) * 3.0, ndt_leaf_min_scale);
-          marker.scale.y = std::max(std::sqrt(eigen_values(1, 1)) * 3.0, ndt_leaf_min_scale);
-          marker.scale.z = std::max(std::sqrt(eigen_values(2, 2)) * 3.0, ndt_leaf_min_scale);
-          //  코드에서 3.0을 곱해주는 것은 고유값(eigenvalues)의 제곱근에 대한 스케일을 조정하는 곱셈 계수입니다.
-          //  고유값은 공분산 행렬의 주성분(principal components)의 분산을 나타냅니다. 여기서 제곱근을 취하면 해당 방향의 표준편차(standard deviation)가 됩니다.
-          //  일반적으로 1 표준편차는 정규 분포의 약 68%를 포함합니다, 2 표준편차는 약 95%를, 그리고 3 표준편차는 약 99.7%를 포함합니다.
-          //  따라서 여기서 3.0을 곱해주는 것은 마커가 해당 축에 대한 데이터 포인트의 분포를 3 표준편차 범위 내에서 표현하길 원한다는 것을 나타냅니다.
-          //  이는 해당 마커가 해당 축을 따라서 원본 데이터의 대부분을 포괄하는 크기를 갖도록 하기 위함입니다.
-          //  간단히 말해, 이 계수는 rviz에서 마커의 가시성을 높이고, 더 넓은 범위의 데이터를 시각화하기 위해 사용됩니다. 
-            
+          marker.scale.x = std::sqrt(eigen_values(0, 0)) * 2.2;
+          marker.scale.y = std::sqrt(eigen_values(1, 1)) * 2.2;
+          marker.scale.z = std::sqrt(eigen_values(2, 2)) * 2.2;
 
           // Add marker to marker array
           marker_array->markers.push_back(marker);
         }
-        return marker_array;
+        debug_ndt_map_marker_pub.publish(marker_array);
     } 
-  */
-
-    /**
-     * @brief create visualization marker
-     * @param keyframes - keyframes to visualize as markers
-     * @return visualization_msgs::MarkerArray
-     */
-    // visualization_msgs::MarkerArrayPtr create_marker_array_ndt_submap()
-    // {}
-
 
     /**
      * @brief load all data from a directory
@@ -1496,25 +1473,22 @@ namespace hdl_graph_slam
     // Debug Variables
     ros::Publisher debug_loop_closer_target_pub;
     ros::Publisher debug_loop_closer_source_pub;
-    ros::Publisher debug_scan_ndt_marker_pub;
-    // ros::Publisher debud_ndt_marker_pub; 
-    ros::Publisher debug_ndt_arrow_pub; 
-    std::mutex debug_loop_closure_keyframe_mutex; // 솔직히 이걸 뮤택스로 막아줘야하는지 잘 모르겠지만 일딴 써
     ros::Publisher debug_loop_closure_target_pose_pub;
     ros::Publisher debug_loop_closure_source_pose_pub;
+    ros::Publisher debug_loop_closure_sub_map_pub;
+    ros::Publisher debug_ndt_scan_marker_pub;       // scan elipsoidal marker publisher
+    ros::Publisher debug_ndt_scan_arrow_marker_pub; // scan arrow marker publisher
+    ros::Publisher debug_ndt_map_marker_pub;        // Whole Map ndt elipsoidal marker publisher
     tf2_ros::TransformBroadcaster debug_tf2_tf_broadcaster;
 
 
     // NDT Variables
-    LeafMap leaves;
-    Leaf    leaf;
-    float   leaf_voxel_size;
-    bool    use_ndt_leaves;
-    double  ndt_leaf_min_scale;
-    int     min_nr;
-    // std::mutex submap_keyframes_snapshot_mutex;
-    std::mutex ndt_scan_mutex;
-    // std::vector<KeyFrameSnapshot::Ptr> submap_keyframes_snapshot;
+    bool    create_scan_ndt_;
+    LeafMap leaves_;
+    Leaf    leaf_;
+    float   leaf_voxel_size_;
+    double  ndt_leaf_min_scale_;
+    int     min_nr_;
     
     // ROS
     ros::NodeHandle nh;
