@@ -79,7 +79,9 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "bit": "cpp"
+        "bit": "cpp",
+        "*.ipp": "cpp",
+        "bvh": "cpp"
     },
     "ros.distro": "noetic"
 }

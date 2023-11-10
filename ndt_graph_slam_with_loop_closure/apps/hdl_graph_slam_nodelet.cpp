@@ -1489,6 +1489,7 @@ namespace hdl_graph_slam
     float   leaf_voxel_size_;
     double  ndt_leaf_min_scale_;
     int     min_nr_;
+  
     
     // ROS
     ros::NodeHandle nh;

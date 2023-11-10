@@ -7,6 +7,8 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 #include <hdl_graph_slam/keyframe.hpp>
+#include <g2o/types/slam3d/vertex_se3.h>
+
 
 namespace hdl_graph_slam {
 
@@ -27,6 +29,7 @@ public:
    * @return generated map point cloud
    */
   pcl::PointCloud<PointT>::Ptr generate(const std::vector<KeyFrameSnapshot::Ptr>& keyframes, double resolution) const;
+  pcl::PointCloud<PointT>::Ptr generate(const std::vector<KeyFrame::Ptr>& keyframes, double resolution) const;
 
 };
 

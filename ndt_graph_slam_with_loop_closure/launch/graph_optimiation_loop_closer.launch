@@ -47,16 +47,17 @@
     <param name="radius_min_neighbors" value="12" />
   </node>
 
-
   <!-- hdl_graph_slam_nodelet -->
   <node pkg="nodelet" type="nodelet" name="hdl_graph_slam_nodelet" args="load hdl_graph_slam/HdlGraphSlamNodelet $(arg nodelet_manager)">
     <param name="points_topic"         value="$(arg points_topic)" />
     <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
     <param name="create_scan_ndt"     value="false" />
-    <param name="leaf_voxel_size"    value="0.5" />
-    <param name="ndt_leaf_min_scale" value="0.0001" />
-    <param name="min_nr"             value="10" />
+    <param name="use_submap_loop"     value="true" />
+    <param name="leaf_voxel_size"     value="0.5" />
+    <param name="ndt_leaf_min_scale"  value="0.0001" />
+    <param name="min_nr"              value="10" />
+    <param name="nr_submap_keyframe"  value="4" /> <!--front(nr_submap_keyframe)-current-back(nr_submap_keyframe) -->
 
     <!-- Debug Features -->
 
@@ -83,7 +84,7 @@
     <param name="distance_thresh" value="1.0" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
     <param name="accum_distance_thresh" value="10.0" />
     <param name="min_edge_interval" value="5.0" />
-    <param name="fitness_score_thresh" value="0.15" /> <!-- 이건 어떤 값이었는지 확인 -->
+    <param name="fitness_score_thresh" value="10.0" /> <!-- 이건 어떤 값이었는지 확인 -->
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />
