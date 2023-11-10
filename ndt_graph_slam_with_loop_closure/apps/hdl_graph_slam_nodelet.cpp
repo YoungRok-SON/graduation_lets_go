@@ -798,7 +798,7 @@ namespace hdl_graph_slam
       pcl::toROSMsg(*aligned_cloud, *aligned_cloud_msg_source);
       aligned_cloud_msg_source->header.frame_id = map_frame_id;
       aligned_cloud_msg_source->header.stamp = ros::Time::now();
-      debug_loop_closer_source_pub.publish(aligned_cloud_msg_source);
+      debug_loop_closer_aligned_pub.publish(aligned_cloud_msg_source);
 
       // Target Pose
       geometry_msgs::PoseStamped pose_msg_target;
@@ -858,7 +858,7 @@ namespace hdl_graph_slam
 
       // Target PointCloud
       sensor_msgs::PointCloud2Ptr cloud_msg_target(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*loop->key2->cloud, *cloud_msg_target);
+      pcl::toROSMsg(*loop->key1->cloud, *cloud_msg_target);
       if(use_submap_loop_)
         cloud_msg_target->header.frame_id = "map";
       else
@@ -867,7 +867,7 @@ namespace hdl_graph_slam
       debug_loop_closer_target_pub.publish(cloud_msg_target);
       // Source PointCloud
       sensor_msgs::PointCloud2Ptr cloud_msg_source(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*loop->key1->cloud, *cloud_msg_source);
+      pcl::toROSMsg(*loop->key2->cloud, *cloud_msg_source);
       cloud_msg_source->header.frame_id = "debug_loop_closure_source_pose";
       cloud_msg_source->header.stamp = ros::Time::now();
       debug_loop_closer_source_pub.publish(cloud_msg_source);

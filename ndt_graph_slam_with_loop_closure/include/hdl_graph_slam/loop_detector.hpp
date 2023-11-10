@@ -114,7 +114,7 @@ namespace hdl_graph_slam
       std::vector<KeyFrame::Ptr> candidates;
       candidates.reserve(32); // GPT한테 물어보자
 
-      int distance_closest = distance_thresh;
+      double distance_closest = distance_thresh;
       KeyFrame::Ptr closest_keyframe;
       int keyframe_idx = 0;
       int closest_keyframe_idx = 0;
@@ -143,7 +143,7 @@ namespace hdl_graph_slam
           distance_closest = dist;
           closest_keyframe = k;
           closest_keyframe_idx = keyframe_idx;
-          ROS_INFO("Closest Distacne: %d", distance_closest);
+          ROS_INFO("Closest Distacne: %f", distance_closest);
         }
       }
 
