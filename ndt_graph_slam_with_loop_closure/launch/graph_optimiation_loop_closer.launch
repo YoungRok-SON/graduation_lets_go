@@ -38,7 +38,7 @@
     <param name="distance_far_thresh" value="4.0" />
     <!-- NONE, VOXELGRID, or APPROX_VOXELGRID -->
     <param name="downsample_method" value="VOXELGRID" />
-    <param name="downsample_resolution" value="0.05" />
+    <param name="downsample_resolution" value="0.1" />
     <!-- NONE, RADIUS, or STATISTICAL -->
     <param name="outlier_removal_method" value="RADIUS" />
     <param name="statistical_mean_k" value="30" />
@@ -83,8 +83,8 @@
     <!-- loop closure params -->
     <param name="distance_thresh" value="1.0" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
     <param name="accum_distance_thresh" value="10.0" />
-    <param name="min_edge_interval" value="5.0" />
-    <param name="fitness_score_thresh" value="10.0" /> <!-- 이건 어떤 값이었는지 확인 -->
+    <param name="min_edge_interval" value="10.0" />
+    <param name="fitness_score_thresh" value="1.0" /> <!-- 이건 어떤 값이었는지 확인 -->
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />

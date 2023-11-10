@@ -152,9 +152,9 @@ namespace hdl_graph_slam
     g2o::EdgeSE3 *edge(new g2o::EdgeSE3());
     edge->setMeasurement(relative_pose);
     edge->setInformation(information_matrix);
-    edge->vertices()[0] = v1;
-    edge->vertices()[1] = v2;
-    graph->addEdge(edge);
+    edge->vertices()[0] = v1; // target
+    edge->vertices()[1] = v2; // source
+    graph->addEdge(edge);     // target to source
 
     return edge;
   }

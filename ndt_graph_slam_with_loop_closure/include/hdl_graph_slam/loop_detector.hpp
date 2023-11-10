@@ -57,6 +57,7 @@ namespace hdl_graph_slam
       registration             = select_registration_method(pnh); // 정합 알고리즘
       last_edge_accum_distance = 0.0;
       map_cloud_generator_.reset(new MapCloudGenerator()); // New Feature
+      aligned_cloud_.reset(new pcl::PointCloud<PointT>()); 
 
     }
 
@@ -142,9 +143,14 @@ namespace hdl_graph_slam
           distance_closest = dist;
           closest_keyframe = k;
           closest_keyframe_idx = keyframe_idx;
+          ROS_INFO("Closest Distacne: %d", distance_closest);
         }
       }
 
+      if ( closest_keyframe_idx == 0)
+      {
+        return std::vector<KeyFrame::Ptr>();
+      }
       // Get possible front and back number of accessible keyframes.
       int accessible_front = closest_keyframe_idx - nr_submap_keyframe_;
       int accessible_back = closest_keyframe_idx + nr_submap_keyframe_;
@@ -158,15 +164,26 @@ namespace hdl_graph_slam
       {
         target_keyframe_idx_ = accessible_back - nr_submap_keyframe_; 
         accessible_back = keyframes.size();
-
       }
       ROS_INFO("keyframe size: %ld", keyframes.size());
       ROS_INFO("accessible_front Idx: %d", accessible_front);
       ROS_INFO("accessible_back Idx: %d", accessible_back);
       ROS_INFO("Target Keyframe Idx: %d", target_keyframe_idx_);
-      // Get a Submap accessible keyframes
+      // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
+      const auto &pos2 = new_keyframe->node->estimate().rotation();
       for (int i = accessible_front; i < accessible_back; i++)
+      {
+        
+        const auto &pos1 = keyframes[i]->node->estimate().rotation();
         candidates.push_back(keyframes[i]);
+      }
+
+      // Check orientations of keyframes with new_keyframe.
+      // As RGB-D camera has oriented point cloud...
+      // The Orientation of key_keyframe need to be inside of orientations of candiates range.
+      // If not, the key_keyframe is not a candidate.
+      ;
+
 
       return candidates;
     }
@@ -228,7 +245,6 @@ namespace hdl_graph_slam
         return nullptr;
       }
 
-      registration->setInputTarget(new_keyframe->cloud); // 새롭게 들어온 키프레임을 기준으로
 
       double best_score = std::numeric_limits<double>::max(); // 최저값을 넣는게 아니라 최대값?
       KeyFrame::Ptr best_matched; // 제일 스코어가 높은 키프레임 선정
@@ -249,17 +265,18 @@ namespace hdl_graph_slam
         ROS_INFO("Map Cloud Generation");
         // Generate Submap from keyframes
         submap_cloud = map_cloud_generator_->generate(candidate_keyframes, map_cloud_resolution_); // 0.5는 resolution
+        registration->setInputTarget(submap_cloud); // 새롭게 들어온 키프레임을 기준으로
         // Try Matching with Submap
-          registration->setInputSource(submap_cloud); // 매칭시킬 포인트 클라우드를 가져옴
-          Eigen::Isometry3d new_keyframe_estimate = new_keyframe->node->estimate(); // 타겟의 값 위치 값 가져옴
-          new_keyframe_estimate.linear() = Eigen::Quaterniond(new_keyframe_estimate.linear()).normalized().toRotationMatrix();
-          // Get Closest Keyframe Estimate
-          // Eigen::Isometry3d candidate_estimate = candidate_keyframes[target_keyframe_idx_]->node->estimate();
-          // candidate_estimate.linear() = Eigen::Quaterniond(candidate_estimate.linear()).normalized().toRotationMatrix();
-          // Eigen::Matrix4f guess = (new_keyframe_estimate.inverse() * candidate_estimate).matrix().cast<float>();
-          Eigen::Matrix4f guess = new_keyframe_estimate.matrix().cast<float>();
-          guess(2, 3) = 0.0; // 높이를 없애는 역할.. 이게 있어도 되나..?
-          // 각 노드의 위치를 통해서 guess를 구함. 즉, 두 노드 사이의 상대 위치를 구함
+        registration->setInputSource(new_keyframe->cloud); // 매칭시킬 포인트 클라우드를 가져옴
+        Eigen::Isometry3d new_keyframe_estimate = new_keyframe->node->estimate(); // 타겟의 값 위치 값 가져옴
+        new_keyframe_estimate.linear() = Eigen::Quaterniond(new_keyframe_estimate.linear()).normalized().toRotationMatrix();
+        // Get Closest Keyframe Estimate
+        Eigen::Isometry3d candidate_estimate = candidate_keyframes[target_keyframe_idx_]->node->estimate();
+        candidate_estimate.linear() = Eigen::Quaterniond(candidate_estimate.linear()).normalized().toRotationMatrix();
+        // Eigen::Matrix4f guess = (new_keyframe_estimate.inverse() * candidate_estimate).matrix().cast<float>();
+        Eigen::Matrix4f guess = new_keyframe_estimate.matrix().cast<float>();
+        // guess(2, 3) = 0.0; // 높이를 없애는 역할.. 이게 있어도 되나..?
+        // 각 노드의 위치를 통해서 guess를 구함. 즉, 두 노드 사이의 상대 위치를 구함
 
 
           registration->align(*aligned, guess); // 결국 정렬된 포인트 클라우드는 사용을 안함
@@ -267,18 +284,20 @@ namespace hdl_graph_slam
 
           best_score = registration->getFitnessScore(fitness_score_max_range);
           best_matched = KeyFrame::Ptr(new KeyFrame(candidate_keyframes[target_keyframe_idx_]->stamp, candidate_keyframes[target_keyframe_idx_]->odom, candidate_keyframes[target_keyframe_idx_]->accum_distance, submap_cloud));
-          relative_pose = registration->getFinalTransformation();
+          best_matched->node = candidate_keyframes[target_keyframe_idx_]->node;
+          relative_pose =  candidate_estimate.matrix().cast<float>().inverse() * registration->getFinalTransformation();  // target to source
       }
       else
       {
         for (const auto &candidate : candidate_keyframes)
         {
-          registration->setInputSource(candidate->cloud); // 매칭시킬 포인트 클라우드를 가져옴
+          registration->setInputTarget(candidate->cloud); // 새롭게 들어온 키프레임을 기준으로
+          registration->setInputSource(new_keyframe->cloud); // 매칭시킬 포인트 클라우드를 가져옴
           Eigen::Isometry3d new_keyframe_estimate = new_keyframe->node->estimate(); // 타겟의 값 위치 값 가져옴
           new_keyframe_estimate.linear() = Eigen::Quaterniond(new_keyframe_estimate.linear()).normalized().toRotationMatrix();
           Eigen::Isometry3d candidate_estimate = candidate->node->estimate();
           candidate_estimate.linear() = Eigen::Quaterniond(candidate_estimate.linear()).normalized().toRotationMatrix();
-          Eigen::Matrix4f guess = (new_keyframe_estimate.inverse() * candidate_estimate).matrix().cast<float>();
+          Eigen::Matrix4f guess = (new_keyframe_estimate.inverse() * candidate_estimate).matrix().cast<float>(); // 이 guess 값이 source -> target으로 되어야 하지 않나?
           // 각 노드의 위치를 통해서 guess를 구함. 즉, 두 노드 사이의 상대 위치를 구함
 
           guess(2, 3) = 0.0; // 높이를 없애는 역할.. 이게 있어도 되나..?
@@ -290,13 +309,14 @@ namespace hdl_graph_slam
           {
             continue;
           }
-
           best_score = score;  // Score는 낮을수록 좋은거
           best_matched = candidate; // Target이 새로 들어온 ketframe, Source가 기존에 누적한 keyframe
           relative_pose = registration->getFinalTransformation();
         }
       }
-
+      
+      setAlignedCloudWithFinalTF(aligned, relative_pose);
+      
       auto t2 = ros::Time::now();
       std::cout << " done" << std::endl;
       std::cout <<  "time: " << boost::format("%.3f") % (t2 - t1).toSec() << "[sec]" << std::endl;
@@ -311,9 +331,33 @@ namespace hdl_graph_slam
       std::cout << "relpose: " << relative_pose.block<3, 1>(0, 3) << " - " << Eigen::Quaternionf(relative_pose.block<3, 3>(0, 0)).coeffs().transpose() << std::endl;
 
       last_edge_accum_distance = new_keyframe->accum_distance;
-
-      return std::make_shared<Loop>(new_keyframe, best_matched, relative_pose); //key1이 source(new), key2가 target(optimized keyframes)
+      ROS_INFO("last_edge_accum_distance: %f", last_edge_accum_distance);
+      return std::make_shared<Loop>( best_matched, new_keyframe, relative_pose); //key1이 target(optimized keyframe), key2가 source(new keyframe)
     }
+
+  /* New Features */
+  public:
+    pcl::PointCloud<PointT>::Ptr aligned_cloud_;
+    Eigen::Matrix4f              final_transformation_;
+    void getAlignedCloudWithFianlTF(pcl::PointCloud<PointT>::Ptr& cloud, Eigen::Matrix4f& final_transformation)
+    {
+      cloud = aligned_cloud_;
+      final_transformation = final_transformation_;
+    }
+
+  private:
+
+    void setAlignedCloudWithFinalTF(pcl::PointCloud<PointT>::Ptr cloud, Eigen::Matrix4f final_transformation)
+    {
+      if(cloud->empty())
+      {
+        ROS_ERROR("Aligned Cloud is Empty");
+        return;
+      }
+      aligned_cloud_ = cloud;
+      final_transformation_ = final_transformation;
+    }
+    
 
   private:
     // New Feature
@@ -322,6 +366,8 @@ namespace hdl_graph_slam
     int    nr_submap_keyframe_;
     std::unique_ptr<MapCloudGenerator> map_cloud_generator_;
     int    target_keyframe_idx_;
+
+    
 
 
     double distance_thresh;                // estimated distance between keyframes consisting a loop must be less than this distance

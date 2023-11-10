@@ -137,6 +137,7 @@ namespace hdl_graph_slam
       
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
       /* Debugging Publisher for Loop Closure */
+      debug_loop_closer_aligned_pub      = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_aligned", 1, true);
       debug_loop_closer_target_pub       = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
       debug_loop_closer_source_pub       = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
       debug_loop_closure_target_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
@@ -151,6 +152,8 @@ namespace hdl_graph_slam
       create_scan_ndt_    = private_nh.param<bool>("create_scan_ndt", false);
       min_nr_             = private_nh.param<int>("min_nr", 10);
       ndt_leaf_min_scale_ = private_nh.param<double>("ndt_leaf_min_scale", 0.01);
+      use_submap_loop_    = private_nh.param<bool>("use_submap_loop", false);
+
       // To Do: (Loop Closing 이후) 맵을 잘라서 Server로 보내주거나, 일정 시간 마다 NDT 맵을 잘라서 Keyframe에 대응시켜 보내주는 콜백 추가
 
 
@@ -716,7 +719,8 @@ namespace hdl_graph_slam
       {
         Eigen::Isometry3d relpose(loop->relative_pose.cast<double>());
         Eigen::MatrixXd information_matrix = inf_calclator->calc_information_matrix(loop->key1->cloud, loop->key2->cloud, relpose);
-        auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix);
+        auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix); // 여기서 에러 나는 거 같은디
+        
         graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("loop_closure_edge_robust_kernel", "NONE"), private_nh.param<double>("loop_closure_edge_robust_kernel_size", 1.0));
         
         // Debug Publisher
@@ -784,6 +788,18 @@ namespace hdl_graph_slam
      */
     void debug_loop_closure_points_pose(Loop::Ptr loop)
     {
+      pcl::PointCloud<PointT>::Ptr aligned_cloud;
+      Eigen::Matrix4f final_transformation;
+      loop_detector->getAlignedCloudWithFianlTF(aligned_cloud, final_transformation);
+      std::cout <<"aligned PCD Size: " << aligned_cloud->size() << std::endl;
+      std::cout <<"Relentive Pose: " << final_transformation << std::endl;
+      // Source PointCloud
+      sensor_msgs::PointCloud2Ptr aligned_cloud_msg_source(new sensor_msgs::PointCloud2());
+      pcl::toROSMsg(*aligned_cloud, *aligned_cloud_msg_source);
+      aligned_cloud_msg_source->header.frame_id = map_frame_id;
+      aligned_cloud_msg_source->header.stamp = ros::Time::now();
+      debug_loop_closer_source_pub.publish(aligned_cloud_msg_source);
+
       // Target Pose
       geometry_msgs::PoseStamped pose_msg_target;
       pose_msg_target.header.frame_id = map_frame_id;
@@ -813,6 +829,7 @@ namespace hdl_graph_slam
       
       geometry_msgs::TransformStamped transformStamped_target;
 
+      // It need to be map center... when use a submap
       transformStamped_target.header.frame_id = "map";
       transformStamped_target.child_frame_id = "debug_loop_closure_target_pose";
       transformStamped_target.transform.translation.x = loop->key1->node->estimate().translation().x();
@@ -841,13 +858,16 @@ namespace hdl_graph_slam
 
       // Target PointCloud
       sensor_msgs::PointCloud2Ptr cloud_msg_target(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*loop->key1->cloud, *cloud_msg_target);
-      cloud_msg_target->header.frame_id = "debug_loop_closure_target_pose";
+      pcl::toROSMsg(*loop->key2->cloud, *cloud_msg_target);
+      if(use_submap_loop_)
+        cloud_msg_target->header.frame_id = "map";
+      else
+        cloud_msg_target->header.frame_id = "debug_loop_closure_target_pose";
       cloud_msg_target->header.stamp = ros::Time::now();
       debug_loop_closer_target_pub.publish(cloud_msg_target);
       // Source PointCloud
       sensor_msgs::PointCloud2Ptr cloud_msg_source(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*loop->key2->cloud, *cloud_msg_source);
+      pcl::toROSMsg(*loop->key1->cloud, *cloud_msg_source);
       cloud_msg_source->header.frame_id = "debug_loop_closure_source_pose";
       cloud_msg_source->header.stamp = ros::Time::now();
       debug_loop_closer_source_pub.publish(cloud_msg_source);
@@ -1471,6 +1491,7 @@ namespace hdl_graph_slam
 
   private:
     // Debug Variables
+    ros::Publisher debug_loop_closer_aligned_pub;
     ros::Publisher debug_loop_closer_target_pub;
     ros::Publisher debug_loop_closer_source_pub;
     ros::Publisher debug_loop_closure_target_pose_pub;
@@ -1484,6 +1505,7 @@ namespace hdl_graph_slam
 
     // NDT Variables
     bool    create_scan_ndt_;
+    bool    use_submap_loop_;
     LeafMap leaves_;
     Leaf    leaf_;
     float   leaf_voxel_size_;
