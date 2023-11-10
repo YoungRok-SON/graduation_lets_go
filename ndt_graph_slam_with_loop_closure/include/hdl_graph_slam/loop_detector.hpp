@@ -143,14 +143,16 @@ namespace hdl_graph_slam
           distance_closest = dist;
           closest_keyframe = k;
           closest_keyframe_idx = keyframe_idx;
+          ROS_INFO("Closest Keyframe Idx: %d", closest_keyframe_idx)
           ROS_INFO("Closest Distacne: %f", distance_closest);
         }
       }
 
-      if ( closest_keyframe_idx == 0)
+      if ( closest_keyframe )
       {
         return std::vector<KeyFrame::Ptr>();
       }
+
       // Get possible front and back number of accessible keyframes.
       int accessible_front = closest_keyframe_idx - nr_submap_keyframe_;
       int accessible_back = closest_keyframe_idx + nr_submap_keyframe_;
@@ -172,18 +174,15 @@ namespace hdl_graph_slam
       // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
       const auto &pos2 = new_keyframe->node->estimate().rotation();
       for (int i = accessible_front; i < accessible_back; i++)
-      {
-        
-        const auto &pos1 = keyframes[i]->node->estimate().rotation();
+      {        
         candidates.push_back(keyframes[i]);
       }
 
+      // To Do
       // Check orientations of keyframes with new_keyframe.
       // As RGB-D camera has oriented point cloud...
       // The Orientation of key_keyframe need to be inside of orientations of candiates range.
       // If not, the key_keyframe is not a candidate.
-      ;
-
 
       return candidates;
     }
