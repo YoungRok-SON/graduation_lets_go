@@ -38,7 +38,12 @@ System::System(const string strVocFile, const eSensor sensor, ORBParameters& par
     "ORB-SLAM2 Copyright (C) 2014-2016 Raul Mur-Artal, University of Zaragoza." << endl <<
     "This program comes with ABSOLUTELY NO WARRANTY;" << endl  <<
     "This is free software, and you are welcome to redistribute it" << endl <<
-    "under certain conditions. See LICENSE.txt." << endl << endl;
+    "under certain conditions. See LICENSE.txt." << endl << endl <<
+    "------------------------------------------------------------------" << endl << 
+    "First, Thanks to Raul Mur-Artal for this awsome code!" << endl <<
+    "This code is modified for YoungRok Son for his master degree thessis." << endl <<
+    "Contact: dudfhr3349@gmail.com" << endl << endl
+    "------------------------------------------------------------------" << endl;
 
     cout << "OpenCV version : " << CV_VERSION << endl;
     cout << "Major version : " << CV_MAJOR_VERSION << endl;
@@ -207,20 +212,23 @@ void System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double 
 
     // Check reset
     {
-    unique_lock<mutex> lock(mMutexReset);
-    if(mbReset)
-    {
-        mpTracker->Reset();
-        mbReset = false;
-    }
+        unique_lock<mutex> lock(mMutexReset);
+        if(mbReset)
+        {
+            mpTracker->Reset();
+            mbReset = false;
+        }
     }
 
+    // mp: member pointer
+    // mpt: member pointer to thread
+    // Tcw: Transformation from world to camera
     cv::Mat Tcw = mpTracker->GrabImageRGBD(im,depthmap,timestamp);
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
-    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn;
+    mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn; //Un: undistorted
     current_position_ = Tcw;
 }
 
@@ -289,7 +297,7 @@ bool System::MapChanged()
         return false;
 }
 
-bool System::isRunningGBA()
+bool System::isRunningGBA() // GBA: Global Bundle Adjustment
 {
     return  mpLoopCloser->isRunningGBA();
 }

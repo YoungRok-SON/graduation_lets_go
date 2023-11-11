@@ -271,11 +271,13 @@ void Tracking::Track()
     }
     else
     {
+        /* Frame to Frame Tracking */
+
         // System is initialized. Track Frame.
         bool bOK;
 
         // Initial camera pose estimation using motion model or relocalization (if tracking is lost)
-        if(!mbOnlyTracking)
+        if(!mbOnlyTracking) // SLAM Mode
         {
             // Local Mapping is activated. This is the normal behaviour, unless
             // you explicitly activate the "only tracking" mode.
@@ -296,14 +298,14 @@ void Tracking::Track()
                         bOK = TrackReferenceKeyFrame();
                 }
             }
-            else
+            else // State에 문제가 있다면
             {
                 bOK = Relocalization();
             }
         }
-        else
+        else // Localization Mode: Local Mapping is deactivated
         {
-            // Localization Mode: Local Mapping is deactivated
+            
 
             if(mState==LOST)
             {
@@ -311,7 +313,7 @@ void Tracking::Track()
             }
             else
             {
-                if(!mbVO)
+                if(!mbVO) // mbVO: Visual Odometry
                 {
                     // In last frame we tracked enough MapPoints in the map
 
@@ -324,7 +326,7 @@ void Tracking::Track()
                         bOK = TrackReferenceKeyFrame();
                     }
                 }
-                else
+                else // State==OK and mbVO==true
                 {
                     // In last frame we tracked mainly "visual odometry" points.
 
@@ -334,10 +336,10 @@ void Tracking::Track()
 
                     bool bOKMM = false;
                     bool bOKReloc = false;
-                    vector<MapPoint*> vpMPsMM;
+                    vector<MapPoint*> vpMPsMM; // Map Matching? Map Management? -> Motion Model
                     vector<bool> vbOutMM;
                     cv::Mat TcwMM;
-                    if(!mVelocity.empty())
+                    if(!mVelocity.empty()) // 값이 있다면
                     {
                         bOKMM = TrackWithMotionModel();
                         vpMPsMM = mCurrentFrame.mvpMapPoints;
@@ -346,7 +348,7 @@ void Tracking::Track()
                     }
                     bOKReloc = Relocalization();
 
-                    if(bOKMM && !bOKReloc)
+                    if(bOKMM && !bOKReloc) // Motion Model이 성공했고 Relocalization이 실패했다면
                     {
                         mCurrentFrame.SetPose(TcwMM);
                         mCurrentFrame.mvpMapPoints = vpMPsMM;
@@ -363,30 +365,32 @@ void Tracking::Track()
                             }
                         }
                     }
-                    else if(bOKReloc)
+                    else if(bOKReloc) // Relocalization이 성공했다면
                     {
                         mbVO = false;
                     }
 
-                    bOK = bOKReloc || bOKMM;
+                    bOK = bOKReloc || bOKMM; // 둘 중 하나라도 성공했다면
                 }
             }
         }
 
         mCurrentFrame.mpReferenceKF = mpReferenceKF;
+        
+        /* Local Mapping Start */
 
         // If we have an initial estimation of the camera pose and matching. Track the local map.
-        if(!mbOnlyTracking)
+        if(!mbOnlyTracking) // SLAM Mode
         {
             if(bOK)
                 bOK = TrackLocalMap();
         }
-        else
+        else // Localization Mode
         {
             // mbVO true means that there are few matches to MapPoints in the map. We cannot retrieve
             // a local map and therefore we do not perform TrackLocalMap(). Once the system relocalizes
             // the camera we will use the local map again.
-            if(bOK && !mbVO)
+            if(bOK && !mbVO) // mbVO가 false라면 (매칭된 MapPoint가 거의 없다면) TrackLocalMap()을 수행하지 않음.
                 bOK = TrackLocalMap();
         }
 
@@ -397,17 +401,19 @@ void Tracking::Track()
 
         // Update drawer
         mpFrameDrawer->Update(this);
-
+        
+        /* Keyframe Generation */
+        // Tracking된 정보를 기반으로 Keyframe을 만들 것인지 결정하는 부분 
         // If tracking were good, check if we insert a keyframe
-        if(bOK)
+        if(bOK) 
         {
             // Update motion model
-            if(!mLastFrame.mTcw.empty())
+            if(!mLastFrame.mTcw.empty()) // mLastFrame이 있다면
             {
-                cv::Mat LastTwc = cv::Mat::eye(4,4,CV_32F);
+                cv::Mat LastTwc = cv::Mat::eye(4,4,CV_32F); // LastTwc: 마지막 프레임에서 월드 프레임으로의 변환 행렬
                 mLastFrame.GetRotationInverse().copyTo(LastTwc.rowRange(0,3).colRange(0,3));
                 mLastFrame.GetCameraCenter().copyTo(LastTwc.rowRange(0,3).col(3));
-                mVelocity = mCurrentFrame.mTcw*LastTwc;
+                mVelocity = mCurrentFrame.mTcw*LastTwc; // 상대 포즈를 구함(마지막 프레임에서 현제 프레임의 카메라 위치로의 변환 행렬)
             }
             else
                 mVelocity = cv::Mat();
@@ -418,10 +424,10 @@ void Tracking::Track()
             for(int i=0; i<mCurrentFrame.N; i++)
             {
                 MapPoint* pMP = mCurrentFrame.mvpMapPoints[i];
-                if(pMP)
-                    if(pMP->Observations()<1)
+                if(pMP) // MapPoint가 존재한다면
+                    if(pMP->Observations()<1) // MapPoint의 관측수(다른 프레임에서의 동시 관측)가 1보다 작다면/관측수가 없다면
                     {
-                        mCurrentFrame.mvbOutlier[i] = false;
+                        mCurrentFrame.mvbOutlier[i] = false; // 왜 outlier가 아니라고 하는건지? -> 여기서는 초기화만 진행하는 것 같음. 처음 들어온 키프레임이니까?
                         mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
                     }
             }
@@ -436,7 +442,7 @@ void Tracking::Track()
 
             // Check if we need to insert a new keyframe
             if(NeedNewKeyFrame())
-                CreateNewKeyFrame();
+                CreateNewKeyFrame(); // 여기서 어떤 일이 벌어지는지 확인해야함
 
             // We allow points with high innovation (considererd outliers by the Huber Function)
             // pass to the new keyframe, so that bundle adjustment will finally decide
@@ -444,8 +450,8 @@ void Tracking::Track()
             // with those points so we discard them in the frame.
             for(int i=0; i<mCurrentFrame.N;i++)
             {
-                if(mCurrentFrame.mvpMapPoints[i] && mCurrentFrame.mvbOutlier[i])
-                    mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL);
+                if(mCurrentFrame.mvpMapPoints[i] && mCurrentFrame.mvbOutlier[i]) // MapPoint가 존재하고, outlier라면
+                    mCurrentFrame.mvpMapPoints[i]=static_cast<MapPoint*>(NULL); // CreateNewKeyFrame()을 진행하면서 MapPoint를 제거하는지 확인 필요
             }
         }
 
@@ -460,24 +466,24 @@ void Tracking::Track()
             }
         }
 
-        if(!mCurrentFrame.mpReferenceKF)
+        if(!mCurrentFrame.mpReferenceKF) // mpReferenceKF가 없다면
             mCurrentFrame.mpReferenceKF = mpReferenceKF;
 
         mLastFrame = Frame(mCurrentFrame);
     }
 
     // Store frame pose information to retrieve the complete camera trajectory afterwards.
-    if(!mCurrentFrame.mTcw.empty())
+    if(!mCurrentFrame.mTcw.empty()) // 현재 프레임의 카메라 위치가 존재한다면
     {
-        cv::Mat Tcr = mCurrentFrame.mTcw*mCurrentFrame.mpReferenceKF->GetPoseInverse();
+        cv::Mat Tcr = mCurrentFrame.mTcw*mCurrentFrame.mpReferenceKF->GetPoseInverse(); // Tcr: reference frame to current frame
         mlRelativeFramePoses.push_back(Tcr);
         mlpReferences.push_back(mpReferenceKF);
         mlFrameTimes.push_back(mCurrentFrame.mTimeStamp);
-        mlbLost.push_back(mState==LOST);
+        mlbLost.push_back(mState==LOST); // false가 나오겠지
     }
-    else
+    else // This can happen if tracking is lost
     {
-        // This can happen if tracking is lost
+        // If tracking is lost, take the last available pose and create a dummy entry
         mlRelativeFramePoses.push_back(mlRelativeFramePoses.back());
         mlpReferences.push_back(mlpReferences.back());
         mlFrameTimes.push_back(mlFrameTimes.back());
@@ -1560,6 +1566,7 @@ void Tracking::InformOnlyTracking(const bool &flag)
 {
     mbOnlyTracking = flag;
 }
+
 
 
 

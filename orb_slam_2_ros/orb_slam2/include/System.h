@@ -51,7 +51,8 @@ class System
 {
 public:
     // Input sensor
-    enum eSensor{
+    enum eSensor
+    {
         MONOCULAR=0,
         STEREO=1,
         RGBD=2

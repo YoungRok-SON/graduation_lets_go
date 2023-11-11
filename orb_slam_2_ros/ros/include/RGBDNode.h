@@ -40,14 +40,18 @@
 #include "Node.h"
 
 
-class RGBDNode : public Node
+class RGBDNode : public Node // Node 클래스를 상속받음
 {
   public:
+    // RGBD Node constructor
     RGBDNode (const ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &node_handle, image_transport::ImageTransport &image_transport);
+    // RGBD Node destructor
     ~RGBDNode ();
+    // RGBD Node image callback
     void ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB,const sensor_msgs::ImageConstPtr& msgD);
 
   private:
+    // Subscribe message filter for synchronized RGB and Depth images
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
     message_filters::Subscriber<sensor_msgs::Image> *rgb_subscriber_;
     message_filters::Subscriber<sensor_msgs::Image> *depth_subscriber_;

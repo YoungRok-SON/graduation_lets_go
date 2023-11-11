@@ -96,7 +96,9 @@
         "numericaldiff": "cpp",
         "openglsupport": "cpp",
         "specialfunctions": "cpp",
-        "splines": "cpp"
+        "splines": "cpp",
+        "*.txx": "cpp"
     },
-    "ros.distro": "noetic"
+    "ros.distro": "noetic",
+    "C_Cpp.errorSquiggles": "disabled"
 }

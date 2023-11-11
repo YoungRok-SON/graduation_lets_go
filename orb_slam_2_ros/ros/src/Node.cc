@@ -2,15 +2,22 @@
 
 #include <iostream>
 
-Node::Node (ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &node_handle, image_transport::ImageTransport &image_transport) :  image_transport_(image_transport) {
+// Constructor
+Node::Node (ORB_SLAM2::System::eSensor sensor, 
+            ros::NodeHandle &node_handle,
+            image_transport::ImageTransport &image_transport) 
+            :
+            image_transport_(image_transport) 
+{
   name_of_node_ = ros::this_node::getName();
   node_handle_ = node_handle;
   min_observations_per_point_ = 2;
   sensor_ = sensor;
 }
 
-
-Node::~Node () {
+// Destructor
+Node::~Node () 
+{
   // Stop all threads
   orb_slam_->Shutdown();
 
@@ -20,6 +27,9 @@ Node::~Node () {
   delete orb_slam_;
 }
 
+/* 
+ * @brief Init function for ros node.
+ */
 void Node::Init () {
   //static parameters
   node_handle_.param(name_of_node_+ "/publish_pointcloud", publish_pointcloud_param_, true);
@@ -62,23 +72,28 @@ void Node::Init () {
   status_gba_publisher_ = node_handle_.advertise<std_msgs::Bool> (name_of_node_+"/gba_running", 1);
 }
 
-
-void Node::Update () {
+// Node update and publish
+void Node::Update () 
+{
   cv::Mat position = orb_slam_->GetCurrentPosition();
 
-  if (!position.empty()) {
-    if (publish_tf_param_){
+  if (!position.empty()) 
+  {
+    if (publish_tf_param_)
+    {
       PublishPositionAsTransform(position);
     }
 
-    if (publish_pose_param_) {
+    if (publish_pose_param_) 
+    {
       PublishPositionAsPoseStamped(position);
     }
   }
 
   PublishRenderedImage (orb_slam_->DrawCurrentFrame());
 
-  if (publish_pointcloud_param_) {
+  if (publish_pointcloud_param_) 
+  {
     PublishMapPoints (orb_slam_->GetAllMapPoints());
   }
 
@@ -211,7 +226,7 @@ tf2::Transform Node::TransformFromMat (cv::Mat position_mat) {
   //Coordinate transformation matrix from orb coordinate system to ros coordinate system
   const tf2::Matrix3x3 tf_orb_to_ros (0, 0, 1,
                                     -1, 0, 0,
-                                     0,-1, 0);
+                                     0,-1, 0); // Roll: 180, Pitch: -90, Yaw: 90
 
   //Transform from orb coordinate system to ros coordinate system on camera coordinates
   tf_camera_rotation = tf_orb_to_ros*tf_camera_rotation;
@@ -229,7 +244,8 @@ tf2::Transform Node::TransformFromMat (cv::Mat position_mat) {
 }
 
 
-sensor_msgs::PointCloud2 Node::MapPointsToPointCloud (std::vector<ORB_SLAM2::MapPoint*> map_points) {
+sensor_msgs::PointCloud2 Node::MapPointsToPointCloud (std::vector<ORB_SLAM2::MapPoint*> map_points) 
+{
   if (map_points.size() == 0) {
     std::cout << "Map point vector is empty!" << std::endl;
   }
@@ -263,6 +279,7 @@ sensor_msgs::PointCloud2 Node::MapPointsToPointCloud (std::vector<ORB_SLAM2::Map
   float data_array[num_channels];
   for (unsigned int i=0; i<cloud.width; i++) {
     if (map_points.at(i)->nObs >= min_observations_per_point_) {
+      // Remaping coordinate from camera coordinate system to ros coordinate system
       data_array[0] = map_points.at(i)->GetWorldPos().at<float> (2); //x. Do the transformation by just reading at the position of z instead of x
       data_array[1] = -1.0* map_points.at(i)->GetWorldPos().at<float> (0); //y. Do the transformation by just reading at the position of x instead of y
       data_array[2] = -1.0* map_points.at(i)->GetWorldPos().at<float> (1); //z. Do the transformation by just reading at the position of y instead of z
@@ -320,12 +337,15 @@ void Node::LoadOrbParameters (ORB_SLAM2::ORBParameters& parameters) {
     node_handle_.param(name_of_node_ + "/depth_map_factor", parameters.depthMapFactor, static_cast<float>(1.0));
   }
 
-  if (load_calibration_from_cam) {
+  if (load_calibration_from_cam) 
+  {
     ROS_INFO_STREAM ("Listening for camera info on topic " << node_handle_.resolveName(camera_info_topic_));
     sensor_msgs::CameraInfo::ConstPtr camera_info = ros::topic::waitForMessage<sensor_msgs::CameraInfo>(camera_info_topic_, ros::Duration(1000.0));
-    if(camera_info == nullptr){
+    if(camera_info == nullptr)
+    {
         ROS_WARN("Did not receive camera info before timeout, defaulting to launch file params.");
-    } else {
+    } else 
+    {
       parameters.fx = camera_info->K[0];
       parameters.fy = camera_info->K[4];
       parameters.cx = camera_info->K[2];

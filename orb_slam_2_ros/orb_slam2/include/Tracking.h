@@ -52,7 +52,8 @@ class LocalMapping;
 class LoopClosing;
 class System;
 
-struct ORBParameters{
+struct ORBParameters
+{
     // general parameters for the ORB detector
     int maxFrames, nFeatures, nLevels, iniThFAST, minThFAST;
     bool RGB;
