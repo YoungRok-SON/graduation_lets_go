@@ -54,10 +54,16 @@ namespace hdl_graph_slam
       use_submap_loop_         = pnh.param<bool>("use_submap_loop", false);
       nr_submap_keyframe_      = pnh.param<int>("nr_submap_keyframe", 8);
       map_cloud_resolution_    = pnh.param<double>("map_cloud_resolution", 0.05);
+      distance_far_th_         = pnh.param<double>("distance_near_thresh", 0.5);
+      distance_near_th_        = pnh.param<double>("distance_far_thresh", 4.0);
       registration             = select_registration_method(pnh); // 정합 알고리즘
       last_edge_accum_distance = 0.0;
       map_cloud_generator_.reset(new MapCloudGenerator()); // New Feature
       aligned_cloud_.reset(new pcl::PointCloud<PointT>()); 
+      // create pose matrix with values, x = (near+far)/2, y = 0, z = 0, qx = 0, qy = 0, qz = 0, qw = 1
+      viewpoint_pose = Eigen::Matrix4f::Identity();
+      viewpoint_pose(0, 3) = (distance_near_th_ + distance_far_th_) * 0.5 ;
+      
 
     }
 
@@ -114,10 +120,13 @@ namespace hdl_graph_slam
       std::vector<KeyFrame::Ptr> candidates;
       candidates.reserve(32); // GPT한테 물어보자
 
-      double distance_closest = distance_thresh;
+      // double distance_closest = distance_thresh;
+      double distance_closest = distance_thresh;  // need to be changed
       KeyFrame::Ptr closest_keyframe;
       int keyframe_idx = 0;
       int closest_keyframe_idx = 0;
+      bool key_found = false;
+
       for (const auto &k : keyframes)
       {
         keyframe_idx++;
@@ -126,33 +135,42 @@ namespace hdl_graph_slam
         { // 새로 들어온 keyframe의 누적거리와 기존 keyframe의 누적 거리가 너무 가까우면
           continue;
         }
+        /////////////////////////////////////////////////////////////////////////////////////////// 이 부분 변경?
 
-        const auto &pos1 = k->node->estimate().translation();
-        const auto &pos2 = new_keyframe->node->estimate().translation();
+        // Get Pose of k and new_keyframe
+        const auto &source_pose = new_keyframe->node->estimate();
+        const auto &target_pose = k->node->estimate();
 
-        // estimated distance between keyframes is too small
-        double dist = (pos1.head<2>() - pos2.head<2>()).norm(); // x,y 데이터만 사용
-        if (dist > distance_thresh) // 지정한 거리보다 멀다면
+        // Get a position of viewpoint transformed from target_pose
+        Eigen::Vector4f viewpoint_pos_target = target_pose.matrix().cast<float>() * viewpoint_pose.col(3);
+        Eigen::Vector4f viewpoint_pos_source = source_pose.matrix().cast<float>() * viewpoint_pose.col(3);
+        // Get a distance between viewpoint and source_pose
+        double dist_viewpoint = (viewpoint_pos_target - viewpoint_pos_source).norm();
+
+        if (dist_viewpoint > distance_thresh) // 지정한 거리보다 멀다면
         { 
           continue;
         }
 
         // 루프 돌면서 가장 작은 애들만 반환
-        if( dist < distance_closest )
+        if( dist_viewpoint < distance_closest )
         {
-          distance_closest = dist;
+          distance_closest = dist_viewpoint;
           closest_keyframe = k;
           closest_keyframe_idx = keyframe_idx;
-          ROS_INFO("Closest Keyframe Idx: %d", closest_keyframe_idx)
+          key_found = true;
+          ROS_INFO("Closest Keyframe Idx: %d", closest_keyframe_idx);
           ROS_INFO("Closest Distacne: %f", distance_closest);
         }
+        ///////////////////////////////////////////////////////////////////////////////////////////
       }
 
-      if ( closest_keyframe )
+      if ( !key_found )
       {
         return std::vector<KeyFrame::Ptr>();
       }
 
+      // 이 코드는 동일하게 사용 가능
       // Get possible front and back number of accessible keyframes.
       int accessible_front = closest_keyframe_idx - nr_submap_keyframe_;
       int accessible_back = closest_keyframe_idx + nr_submap_keyframe_;
@@ -365,6 +383,9 @@ namespace hdl_graph_slam
     int    nr_submap_keyframe_;
     std::unique_ptr<MapCloudGenerator> map_cloud_generator_;
     int    target_keyframe_idx_;
+    double distance_far_th_;
+    double distance_near_th_;
+    Eigen::Matrix4f viewpoint_pose;
 
     
 

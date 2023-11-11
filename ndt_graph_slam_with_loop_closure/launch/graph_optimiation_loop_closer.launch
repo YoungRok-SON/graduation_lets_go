@@ -59,6 +59,8 @@
     <param name="min_nr"              value="10" />
     <param name="nr_submap_keyframe"  value="4" /> <!--front(nr_submap_keyframe)-current-back(nr_submap_keyframe) -->
 
+    <param name="distance_near_thresh" value="0.1" />
+    <param name="distance_far_thresh" value="4.0" />
     <!-- Debug Features -->
 
     <!-- frame settings -->
@@ -84,18 +86,18 @@
     <param name="distance_thresh" value="1.0" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
     <param name="accum_distance_thresh" value="10.0" />
     <param name="min_edge_interval" value="10.0" />
-    <param name="fitness_score_thresh" value="1.0" /> <!-- 이건 어떤 값이었는지 확인 -->
+    <param name="fitness_score_thresh" value="0.3" /> <!-- 낮을수록 매칭 잘 된 거 -->
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />
-    <param name="reg_num_threads" value="10" />
-    <param name="reg_transformation_epsilon" value="0.08"/>
+    <param name="reg_num_threads" value="8" />
+    <param name="reg_transformation_epsilon" value="0.05"/>
     <param name="reg_maximum_iterations" value="64"/>
-    <param name="reg_max_correspondence_distance" value="0.8"/>
+    <param name="reg_max_correspondence_distance" value="0.4"/>
     <param name="reg_max_optimizer_iterations" value="20"/>
     <param name="reg_use_reciprocal_correspondences" value="false"/>
     <param name="reg_correspondence_randomness" value="20"/>
-    <param name="reg_resolution" value="0.8" />
+    <param name="reg_resolution" value="0.4" /> <!-- ndt resolution은 이걸로 설정 -->
     <param name="reg_nn_search_method" value="DIRECT7" />
     <!-- edge params -->
     <!-- GPS -->
@@ -129,7 +131,7 @@
     <!-- update params -->
     <param name="graph_update_interval" value="1.5" />
     <param name="map_cloud_update_interval" value="3.0" />
-    <param name="map_cloud_resolution" value="0.01" />
+    <param name="map_cloud_resolution" value="0.05" />
   </node>
 
   <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
