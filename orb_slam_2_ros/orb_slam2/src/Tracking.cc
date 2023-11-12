@@ -256,7 +256,7 @@ void Tracking::Track()
 
     // Get Map Mutex -> Map cannot be changed
     unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
-
+    
     if(mState==NOT_INITIALIZED)
     {
         if(mSensor==System::STEREO || mSensor==System::RGBD)
@@ -269,7 +269,7 @@ void Tracking::Track()
         if(mState!=OK)
             return;
     }
-    else
+    else 
     {
         /* Frame to Frame Tracking */
 
@@ -311,7 +311,7 @@ void Tracking::Track()
             {
                 bOK = Relocalization();
             }
-            else
+            else // 
             {
                 if(!mbVO) // mbVO: Visual Odometry
                 {
