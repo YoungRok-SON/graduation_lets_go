@@ -42,7 +42,7 @@ System::System(const string strVocFile, const eSensor sensor, ORBParameters& par
     "------------------------------------------------------------------" << endl << 
     "First, Thanks to Raul Mur-Artal for this awsome code!" << endl <<
     "This code is modified for YoungRok Son for his master degree thessis." << endl <<
-    "Contact: dudfhr3349@gmail.com" << endl << endl
+    "Contact: dudfhr3349@gmail.com" << endl << endl <<
     "------------------------------------------------------------------" << endl;
 
     cout << "OpenCV version : " << CV_VERSION << endl;
@@ -209,6 +209,39 @@ void System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double 
             mbDeactivateLocalizationMode = false;
         }
     }
+}
+
+void System::TrackRGBDP(const cv::Mat &im, const cv::Mat &depthmap, pcl::PointCloud<PointT> pointcloud, const double &timestamp)
+{
+    if(mSensor!=RGBD)
+    {
+        cerr << "ERROR: you called TrackRGBD but input sensor was not set to RGBD." << endl;
+        exit(-1);
+    }
+
+    // Check mode change
+    {
+        unique_lock<mutex> lock(mMutexMode);
+        if(mbActivateLocalizationMode)
+        {
+            mpLocalMapper->RequestStop();
+
+            // Wait until Local Mapping has effectively stopped
+            while(!mpLocalMapper->isStopped())
+            {
+                std::this_thread::sleep_for(std::chrono::microseconds(1000));
+            }
+
+            mpTracker->InformOnlyTracking(true);
+            mbActivateLocalizationMode = false;
+        }
+        if(mbDeactivateLocalizationMode)
+        {
+            mpTracker->InformOnlyTracking(false);
+            mpLocalMapper->Release();
+            mbDeactivateLocalizationMode = false;
+        }
+    }
 
     // Check reset
     {
@@ -223,14 +256,14 @@ void System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double 
     // mp: member pointer
     // mpt: member pointer to thread
     // Tcw: Transformation from world to camera
-    cv::Mat Tcw = mpTracker->GrabImageRGBD(im,depthmap,timestamp);
+    cv::Mat Tcw = mpTracker->GrabImageRGBDP(im,depthmap, pointcloud,timestamp);
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;
     mTrackedMapPoints = mpTracker->mCurrentFrame.mvpMapPoints;
     mTrackedKeyPointsUn = mpTracker->mCurrentFrame.mvKeysUn; //Un: undistorted
     current_position_ = Tcw;
-}
+} 
 
 void System::TrackMonocular(const cv::Mat &im, const double &timestamp)
 {

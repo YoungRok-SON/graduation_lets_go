@@ -7,11 +7,11 @@ ENDIF()
 
 # Check for c++11 support
 INCLUDE(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
+CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX11)
 IF(COMPILER_SUPPORTS_CXX11)
-  set(CMAKE_CXX_FLAGS "-std=c++11 ${CMAKE_CXX_FLAGS}")
+  set(CMAKE_CXX_FLAGS "-std=c++14 ${CMAKE_CXX_FLAGS}")
 ELSE()
-  MESSAGE(ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+  MESSAGE(ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support. Please use a different C++ compiler.")
 ENDIF()
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/orb_slam2/cmake_modules)
@@ -28,6 +28,7 @@ tf2_ros
 sensor_msgs
 dynamic_reconfigure
 message_generation
+pcl_ros 
 )
 
 find_package(OpenCV 4.0 QUIET)

@@ -32,6 +32,15 @@
 
 #include <opencv2/opencv.hpp>
 
+// New Feature
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/radius_outlier_removal.h>
+
+
+
 namespace ORB_SLAM2
 {
 #define FRAME_GRID_ROWS 48
@@ -39,6 +48,7 @@ namespace ORB_SLAM2
 
 class MapPoint;
 class KeyFrame;
+typedef pcl::PointXYZRGB PointT;
 
 class Frame
 {
@@ -53,6 +63,9 @@ public:
 
     // Constructor for RGB-D cameras.
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+
+    // Constructor for RGB-D camera with pointcloud
+    Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const pcl::PointCloud<PointT>::Ptr &pointcloud, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Constructor for Monocular cameras.
     Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
@@ -97,6 +110,8 @@ public:
 
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
+
+    pcl::PointCloud<PointT>::Ptr ApplyPCDFilter(pcl::PointCloud<PointT>::Ptr cloud, float min_x=0.1, float max_x=4.0, float voxel_size=0.1,float radius=0.4, int n_points=0.1 );
 
 public:
     // Vocabulary used for relocalization.
@@ -186,6 +201,9 @@ public:
     static float mnMaxY;
 
     static bool mbInitialComputations;
+
+    // New Feature
+    pcl::PointCloud<PointT>::Ptr mPointCloud;
 
 
 private:

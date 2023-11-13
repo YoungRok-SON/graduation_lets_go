@@ -215,6 +215,37 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const d
     return mCurrentFrame.mTcw.clone();
 }
 
+cv::Mat Tracking::GrabImageRGBDP(const cv::Mat &imRGB,const cv::Mat &imD, pcl::PointCloud<PointT> pointcloud, const double &timestamp)
+{
+    mImGray = imRGB;
+    cv::Mat imDepth = imD;
+    pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>(pointcloud));
+
+    if(mImGray.channels()==3)
+    {
+        if(mbRGB)
+            cvtColor(mImGray,mImGray,CV_RGB2GRAY);
+        else
+            cvtColor(mImGray,mImGray,CV_BGR2GRAY);
+    }
+    else if(mImGray.channels()==4)
+    {
+        if(mbRGB)
+            cvtColor(mImGray,mImGray,CV_RGBA2GRAY);
+        else
+            cvtColor(mImGray,mImGray,CV_BGRA2GRAY);
+    }
+
+    if((fabs(mDepthMapFactor-1.0f)>1e-5) || imDepth.type()!=CV_32F)
+        imDepth.convertTo(imDepth,CV_32F,mDepthMapFactor);
+
+    mCurrentFrame = Frame(mImGray,imDepth, cloud, timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+
+    Track();
+
+    return mCurrentFrame.mTcw.clone();
+}
+
 
 cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
 {
