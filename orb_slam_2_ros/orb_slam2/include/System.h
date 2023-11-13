@@ -80,7 +80,7 @@ public:
 
     // New feature
     // Get point cloud data from ros node.
-    void TrackRGBDP(const cv::Mat &im, const cv::Mat &depthmap, pcl::PointCloud<PointT> pointcloud, const double &timestamp);
+    void TrackRGBDP(const cv::Mat &im, const cv::Mat &depthmap, pcl::PointCloud<PointT>::Ptr pointcloud, const double &timestamp);
 
 
     // Process the given monocular frame

@@ -215,11 +215,10 @@ cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const d
     return mCurrentFrame.mTcw.clone();
 }
 
-cv::Mat Tracking::GrabImageRGBDP(const cv::Mat &imRGB,const cv::Mat &imD, pcl::PointCloud<PointT> pointcloud, const double &timestamp)
+cv::Mat Tracking::GrabImageRGBDP(const cv::Mat &imRGB,const cv::Mat &imD, pcl::PointCloud<PointT>::Ptr pointcloud, const double &timestamp)
 {
     mImGray = imRGB;
     cv::Mat imDepth = imD;
-    pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>(pointcloud));
 
     if(mImGray.channels()==3)
     {
@@ -239,7 +238,7 @@ cv::Mat Tracking::GrabImageRGBDP(const cv::Mat &imRGB,const cv::Mat &imD, pcl::P
     if((fabs(mDepthMapFactor-1.0f)>1e-5) || imDepth.type()!=CV_32F)
         imDepth.convertTo(imDepth,CV_32F,mDepthMapFactor);
 
-    mCurrentFrame = Frame(mImGray,imDepth, cloud, timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
+    mCurrentFrame = Frame(mImGray,imDepth, pointcloud, timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
     Track();
 

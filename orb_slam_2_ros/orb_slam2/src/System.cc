@@ -211,7 +211,7 @@ void System::TrackRGBD(const cv::Mat &im, const cv::Mat &depthmap, const double 
     }
 }
 
-void System::TrackRGBDP(const cv::Mat &im, const cv::Mat &depthmap, pcl::PointCloud<PointT> pointcloud, const double &timestamp)
+void System::TrackRGBDP(const cv::Mat &im, const cv::Mat &depthmap, pcl::PointCloud<PointT>::Ptr pointcloud, const double &timestamp)
 {
     if(mSensor!=RGBD)
     {

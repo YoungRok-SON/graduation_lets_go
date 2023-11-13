@@ -30,6 +30,9 @@
 #include "KeyFrameDatabase.h"
 #include "BoostArchiver.h"
 
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+
 #include <mutex>
 
 
@@ -40,6 +43,7 @@ class Map;
 class MapPoint;
 class Frame;
 class KeyFrameDatabase;
+typedef pcl::PointXYZRGB PointCloudT;
 
 class KeyFrame
 {
@@ -232,6 +236,9 @@ protected:
     std::mutex mMutexPose;
     std::mutex mMutexConnections;
     std::mutex mMutexFeatures;
+
+    // New Feature
+    pcl::PointCloud<PointCloudT>::Ptr mPointCloud;
 
 // map serialization addition
 public:

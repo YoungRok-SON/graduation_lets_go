@@ -32,10 +32,11 @@ int main(int argc, char **argv)
 RGBDNode::RGBDNode (const ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &node_handle, image_transport::ImageTransport &image_transport) : Node (sensor, node_handle, image_transport) {
   rgb_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, "/camera/rgb/image_raw", 1);
   depth_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, "/camera/depth_registered/image_raw", 1);
+  pointcloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (node_handle, "/camera/depth/color/points", 1);
   camera_info_topic_ = "/camera/rgb/camera_info";
 
-  sync_ = new message_filters::Synchronizer<sync_pol> (sync_pol(10), *rgb_subscriber_, *depth_subscriber_);
-  sync_->registerCallback(boost::bind(&RGBDNode::ImageCallback, this, _1, _2));
+  sync_ = new message_filters::Synchronizer<sync_pol> (sync_pol(10), *rgb_subscriber_, *depth_subscriber_, *pointcloud_subscriber_);
+  sync_->registerCallback(boost::bind(&RGBDNode::ImageCallback, this, _1, _2, _3));
 }
 
 
@@ -46,7 +47,8 @@ RGBDNode::~RGBDNode () {
 }
 
 
-void RGBDNode::ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD) {
+void RGBDNode::ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD, const sensor_msgs::PointCloud2ConstPtr& msgPointCloud) 
+{
   // Copy the ros image message to cv::Mat.
   cv_bridge::CvImageConstPtr cv_ptrRGB;
   try {
@@ -69,10 +71,13 @@ void RGBDNode::ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const se
       return;
   }
 
+  pcl::PointCloud<PointT>::Ptr pointcloud(new pcl::PointCloud<PointT>());
+  pcl::fromROSMsg(*msgPointCloud, *pointcloud);
+
   current_frame_time_ = msgRGB->header.stamp;
 
   // Pass the image to the SLAM system to track the camera pose.
-  orb_slam_->TrackRGBD(cv_ptrRGB->image,cv_ptrD->image,cv_ptrRGB->header.stamp.toSec());
+  orb_slam_->TrackRGBDP(cv_ptrRGB->image, cv_ptrD->image, pointcloud, cv_ptrRGB->header.stamp.toSec());
 
   // Update the map visualization
   Update (); // Node Class의 Update 함수 호출

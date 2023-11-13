@@ -224,7 +224,7 @@ Frame::Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const pcl::PointClou
     mb = mbf/fx;
 
     AssignFeaturesToGrid();
-
+    
     // Filtering Point Cloud
     mPointCloud = ApplyPCDFilter(pointcloud);
 }

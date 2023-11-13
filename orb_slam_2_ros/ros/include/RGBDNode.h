@@ -36,6 +36,8 @@
 #include <opencv2/core/core.hpp>
 #include <tf/transform_broadcaster.h>
 
+#include <pcl_conversions/pcl_conversions.h>
+
 #include "System.h"
 #include "Node.h"
 
@@ -48,13 +50,14 @@ class RGBDNode : public Node // Node 클래스를 상속받음
     // RGBD Node destructor
     ~RGBDNode ();
     // RGBD Node image callback
-    void ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB,const sensor_msgs::ImageConstPtr& msgD);
+    void ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD, const sensor_msgs::PointCloud2ConstPtr& msgPointCloud) ;
 
   private:
     // Subscribe message filter for synchronized RGB and Depth images
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> sync_pol;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::PointCloud2> sync_pol;
     message_filters::Subscriber<sensor_msgs::Image> *rgb_subscriber_;
     message_filters::Subscriber<sensor_msgs::Image> *depth_subscriber_;
+    message_filters::Subscriber<sensor_msgs::PointCloud2> *pointcloud_subscriber_;
     message_filters::Synchronizer<sync_pol> *sync_;
 };
 
