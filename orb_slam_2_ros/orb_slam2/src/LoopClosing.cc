@@ -134,7 +134,7 @@ bool LoopClosing::DetectLoop()
     // Compute reference BoW similarity score
     // This is the lowest score to a connected keyframe in the covisibility graph
     // We will impose loop candidates to have a higher similarity than this
-    const vector<KeyFrame*> vpConnectedKeyFrames = mpCurrentKF->GetVectorCovisibleKeyFrames();
+    const vector<KeyFrame*> vpConnectedKeyFrames = mpCurrentKF->GetVectorCovisibleKeyFrames(); // 임계값 이상의 공변성 관계를 가진 키프레임만 추출
     const DBoW2::BowVector &CurrentBowVec = mpCurrentKF->mBowVec;
     float minScore = 1;
     for(size_t i=0; i<vpConnectedKeyFrames.size(); i++)
@@ -161,46 +161,51 @@ bool LoopClosing::DetectLoop()
         mpCurrentKF->SetErase();
         return false;
     }
-
+    
+    // 일관성 검사 - 후보 필터링 하는데 사용
     // For each loop candidate check consistency with previous loop candidates
     // Each candidate expands a covisibility group (keyframes connected to the loop candidate in the covisibility graph)
     // A group is consistent with a previous group if they share at least a keyframe
     // We must detect a consistent loop in several consecutive keyframes to accept it
-    mvpEnoughConsistentCandidates.clear();
+    mvpEnoughConsistentCandidates.clear(); // 충분히 일관성 있는 후보들을 저장하는 벡터
 
-    vector<ConsistentGroup> vCurrentConsistentGroups;
-    vector<bool> vbConsistentGroup(mvConsistentGroups.size(),false);
+    vector<ConsistentGroup> vCurrentConsistentGroups; // 현재 루프 후보들의 일관성 그룹을 저장할 수 있는 벡터
+    vector<bool> vbConsistentGroup(mvConsistentGroups.size(),false); // 이전 일관성 그룹과의 일치여부를 추적하는 불리언 벡터 초기화
+   
     for(size_t i=0, iend=vpCandidateKFs.size(); i<iend; i++)
     {
-        KeyFrame* pCandidateKF = vpCandidateKFs[i];
-
+        // 루프 후보들을 순회하며 후보와 관련된 키프레임 그룹을 얻음
+        KeyFrame* pCandidateKF = vpCandidateKFs[i]; 
         set<KeyFrame*> spCandidateGroup = pCandidateKF->GetConnectedKeyFrames();
-        spCandidateGroup.insert(pCandidateKF);
+        spCandidateGroup.insert(pCandidateKF); // 자기 자신도 넣는거야?
 
+
+        // 이전 일관성 그룹들과의 비교 - 현재 후보 그룹(), 이
         bool bEnoughConsistent = false;
         bool bConsistentForSomeGroup = false;
         for(size_t iG=0, iendG=mvConsistentGroups.size(); iG<iendG; iG++)
-        {
-            set<KeyFrame*> sPreviousGroup = mvConsistentGroups[iG].first;
+        {   
+            // 이전에 감지된 일관성 있는 그룹들 중 하나를 가져옴
+            set<KeyFrame*> sPreviousGroup = mvConsistentGroups[iG].first; 
 
             bool bConsistent = false;
             for(set<KeyFrame*>::iterator sit=spCandidateGroup.begin(), send=spCandidateGroup.end(); sit!=send;sit++)
             {
-                if(sPreviousGroup.count(*sit))
+                if(sPreviousGroup.count(*sit)) // 이전 그룹들 중 현재 후보 그룹과 공유하는 키프레임이 있는지 확인
                 {
                     bConsistent=true;
-                    bConsistentForSomeGroup=true;
+                    bConsistentForSomeGroup=true; // 있다면 일관성이 있다고 표시
                     break;
                 }
             }
 
-            if(bConsistent)
+            if(bConsistent) // 일관성이 있다면
             {
-                int nPreviousConsistency = mvConsistentGroups[iG].second;
-                int nCurrentConsistency = nPreviousConsistency + 1;
-                if(!vbConsistentGroup[iG])
+                int nPreviousConsistency = mvConsistentGroups[iG].second; // 이전 일관성 그룹의 일관성 수치를 가져옴
+                int nCurrentConsistency = nPreviousConsistency + 1; // 현재 일관성 그룹의 일관성 수치를 1 증가시킴
+                if(!vbConsistentGroup[iG]) // 이전 일관성 그룹과의 일치여부를 추적하는 불리언 벡터가 false라면
                 {
-                    ConsistentGroup cg = make_pair(spCandidateGroup,nCurrentConsistency);
+                    ConsistentGroup cg = make_pair(spCandidateGroup,nCurrentConsistency); // 현재 일관성 그룹을 생성 (후보 키프레임, 일관성 수치)
                     vCurrentConsistentGroups.push_back(cg);
                     vbConsistentGroup[iG]=true; //this avoid to include the same group more than once
                 }
