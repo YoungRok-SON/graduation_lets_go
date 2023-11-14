@@ -87,8 +87,14 @@ protected:
     bool CheckNewKeyFrames();
 
     bool DetectLoop();
+    
+    // New Feature for Loop Closure detection using NDT.
+    bool DetectLoopNDT();
 
     bool ComputeSim3();
+    
+    // New Feature for Compute Sim3 using NDT registration result.
+    bool ComputeSim3NDT();
 
     void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
 

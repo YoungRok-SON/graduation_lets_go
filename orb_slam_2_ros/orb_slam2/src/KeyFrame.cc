@@ -291,7 +291,7 @@ void KeyFrame::UpdateConnections()
 {
     map<KeyFrame*,int> KFcounter;
 
-    vector<MapPoint*> vpMP;
+    vector<MapPoint*>  ;
 
     {
         unique_lock<mutex> lockMPs(mMutexFeatures);

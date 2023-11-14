@@ -74,6 +74,17 @@ void LoopClosing::Run()
                    CorrectLoop();
                }
             }
+            // Detect loop candidates and check covisibility consistency
+            if(DetectLoopNDT())
+            {
+               // Compute similarity transformation [sR|t]
+               // In the stereo/RGBD case s=1
+               if(ComputeSim3NDT())
+               {
+                   // Perform loop fusion and pose graph optimization
+                   CorrectLoop();
+               }
+            }
         }
 
         ResetIfRequested();
@@ -102,7 +113,7 @@ bool LoopClosing::CheckNewKeyFrames()
 
 bool LoopClosing::DetectLoop()
 {
-    {
+    {// 키 프레임 추출 및 대기열 관리
         unique_lock<mutex> lock(mMutexLoopQueue);
         mpCurrentKF = mlpLoopKeyFrameQueue.front();
         mlpLoopKeyFrameQueue.pop_front();
@@ -110,14 +121,16 @@ bool LoopClosing::DetectLoop()
         mpCurrentKF->SetNotErase();
     }
 
+    // 초기 조건 검사 - 마지막으로 루프가 감지된 키프레임과의 키프레임 단위 거리가 10 이상이어야 함
     //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
-    if(mpCurrentKF->mnId<mLastLoopKFid+10)
+    if(mpCurrentKF->mnId < mLastLoopKFid+10)
     {
         mpKeyFrameDB->add(mpCurrentKF);
         mpCurrentKF->SetErase();
         return false;
     }
 
+    // BoW 유사도 점수 계산 - 후보 필터링 하는데 사용
     // Compute reference BoW similarity score
     // This is the lowest score to a connected keyframe in the covisibility graph
     // We will impose loop candidates to have a higher similarity than this
