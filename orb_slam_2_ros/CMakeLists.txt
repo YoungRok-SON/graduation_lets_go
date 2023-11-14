@@ -31,7 +31,7 @@ message_generation
 pcl_ros 
 )
 
-find_package(OpenCV 4.0 QUIET)
+find_package(OpenCV 4.4 QUIET)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 3.0 QUIET)
    if(NOT OpenCV_FOUND)
