@@ -149,7 +149,7 @@ bool LoopClosing::DetectLoop()
         if(score<minScore)
             minScore = score;
     }
-
+    // 루프 후보 탐색 - 최소 BoW 점수 이상인 루프 후보 탐색
     // Query the database imposing the minimum score
     vector<KeyFrame*> vpCandidateKFs = mpKeyFrameDB->DetectLoopCandidates(mpCurrentKF, minScore);
 
@@ -162,6 +162,7 @@ bool LoopClosing::DetectLoop()
         return false;
     }
 
+    // 루프 후보 검증 - 루프 후보가 충분히 일관성이 있는지 검사
     // For each loop candidate check consistency with previous loop candidates
     // Each candidate expands a covisibility group (keyframes connected to the loop candidate in the covisibility graph)
     // A group is consistent with a previous group if they share at least a keyframe
