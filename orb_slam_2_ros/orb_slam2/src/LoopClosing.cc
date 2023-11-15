@@ -79,7 +79,7 @@ void LoopClosing::Run()
             {
                // Compute similarity transformation [sR|t]
                // In the stereo/RGBD case s=1
-               if(ComputeSim3NDT())
+               if(ComputeSE3NDT())
                {
                    // Perform loop fusion and pose graph optimization
                    CorrectLoop();
@@ -134,7 +134,7 @@ bool LoopClosing::DetectLoop()
     // Compute reference BoW similarity score
     // This is the lowest score to a connected keyframe in the covisibility graph
     // We will impose loop candidates to have a higher similarity than this
-    const vector<KeyFrame*> vpConnectedKeyFrames = mpCurrentKF->GetVectorCovisibleKeyFrames();
+    const vector<KeyFrame*> vpConnectedKeyFrames = mpCurrentKF->GetVectorCovisibleKeyFrames(); // 임계값 이상의 공변성 관계를 가진 키프레임만 추출
     const DBoW2::BowVector &CurrentBowVec = mpCurrentKF->mBowVec;
     float minScore = 1;
     for(size_t i=0; i<vpConnectedKeyFrames.size(); i++)
@@ -161,51 +161,60 @@ bool LoopClosing::DetectLoop()
         mpCurrentKF->SetErase();
         return false;
     }
+<<<<<<< HEAD
 
     // 루프 후보 검증 - 루프 후보가 충분히 일관성이 있는지 검사
+=======
+    
+    // 일관성 검사 - 후보 필터링 하는데 사용
+>>>>>>> 125207d290546edd441fc9f2615a252d4d217824
     // For each loop candidate check consistency with previous loop candidates
     // Each candidate expands a covisibility group (keyframes connected to the loop candidate in the covisibility graph)
     // A group is consistent with a previous group if they share at least a keyframe
     // We must detect a consistent loop in several consecutive keyframes to accept it
-    mvpEnoughConsistentCandidates.clear();
+    mvpEnoughConsistentCandidates.clear(); // 충분히 일관성 있는 후보들을 저장하는 벡터
 
-    vector<ConsistentGroup> vCurrentConsistentGroups;
-    vector<bool> vbConsistentGroup(mvConsistentGroups.size(),false);
+    vector<ConsistentGroup> vCurrentConsistentGroups; // 현재 루프 후보들의 일관성 그룹을 저장할 수 있는 벡터
+    vector<bool> vbConsistentGroup(mvConsistentGroups.size(),false); // 이전 일관성 그룹과의 일치여부를 추적하는 불리언 벡터 초기화
+   
     for(size_t i=0, iend=vpCandidateKFs.size(); i<iend; i++)
     {
-        KeyFrame* pCandidateKF = vpCandidateKFs[i];
-
+        // 루프 후보들을 순회하며 후보와 관련된 키프레임 그룹을 얻음
+        KeyFrame* pCandidateKF = vpCandidateKFs[i]; 
         set<KeyFrame*> spCandidateGroup = pCandidateKF->GetConnectedKeyFrames();
-        spCandidateGroup.insert(pCandidateKF);
+        spCandidateGroup.insert(pCandidateKF); // 자기 자신도 넣는거야?
 
+
+        // 이전 일관성 그룹들과의 비교 - 현재 후보 그룹(), 이
         bool bEnoughConsistent = false;
         bool bConsistentForSomeGroup = false;
         for(size_t iG=0, iendG=mvConsistentGroups.size(); iG<iendG; iG++)
-        {
-            set<KeyFrame*> sPreviousGroup = mvConsistentGroups[iG].first;
+        {   
+            // 이전에 감지된 일관성 있는 그룹들 중 하나를 가져옴
+            set<KeyFrame*> sPreviousGroup = mvConsistentGroups[iG].first; 
 
             bool bConsistent = false;
             for(set<KeyFrame*>::iterator sit=spCandidateGroup.begin(), send=spCandidateGroup.end(); sit!=send;sit++)
             {
-                if(sPreviousGroup.count(*sit))
+                if(sPreviousGroup.count(*sit)) // 이전 그룹들 중 현재 후보 그룹과 공유하는 키프레임이 있는지 확인
                 {
                     bConsistent=true;
-                    bConsistentForSomeGroup=true;
+                    bConsistentForSomeGroup=true; // 있다면 일관성이 있다고 표시
                     break;
                 }
             }
 
-            if(bConsistent)
+            if(bConsistent) // 일관성이 있다면
             {
-                int nPreviousConsistency = mvConsistentGroups[iG].second;
-                int nCurrentConsistency = nPreviousConsistency + 1;
-                if(!vbConsistentGroup[iG])
+                int nPreviousConsistency = mvConsistentGroups[iG].second; // 이전 일관성 그룹의 일관성 수치를 가져옴
+                int nCurrentConsistency = nPreviousConsistency + 1; // 현재 일관성 그룹의 일관성 수치를 1 증가시킴
+                if(!vbConsistentGroup[iG]) // 이전 일관성 그룹과의 일치여부를 추적하는 불리언 벡터가 false라면
                 {
-                    ConsistentGroup cg = make_pair(spCandidateGroup,nCurrentConsistency);
+                    ConsistentGroup cg = make_pair(spCandidateGroup,nCurrentConsistency); // 현재 일관성 그룹을 생성 (후보 키프레임, 일관성 수치)
                     vCurrentConsistentGroups.push_back(cg);
                     vbConsistentGroup[iG]=true; //this avoid to include the same group more than once
                 }
-                if(nCurrentConsistency>=mnCovisibilityConsistencyTh && !bEnoughConsistent)
+                if(nCurrentConsistency >= mnCovisibilityConsistencyTh && !bEnoughConsistent) // 현재 일관성 그룹의 일관성 수치가 임계값 이상이고, 충분히 일관성 있는 후보들을 저장하는 벡터에 추가되지 않았다면
                 {
                     mvpEnoughConsistentCandidates.push_back(pCandidateKF);
                     bEnoughConsistent=true; //this avoid to insert the same candidate more than once
@@ -242,6 +251,37 @@ bool LoopClosing::DetectLoop()
     return false;
 }
 
+bool LoopClosing::DetectLoopNDT()
+{
+    // Get a new KeyFrame
+    {
+        unique_lock<mutex> lock(mMutexLoopQueue);
+        mpCurrentKF = mlpLoopKeyFrameQueue.front();
+        mlpLoopKeyFrameQueue.pop_front();
+        // Avoid that a keyframe can be erased while it is being process by this thread
+        mpCurrentKF->SetNotErase();
+    }
+
+    //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
+    if(mpCurrentKF->mnId < mLastLoopKFid+10)
+    {
+        mpKeyFrameDB->add(mpCurrentKF);
+        mpCurrentKF->SetErase();
+        return false;
+    }
+
+    // Compare Look ahead distance between current KF and last loop KF
+    // If the distance is less than 1m, return true
+    // Look ahead distance is mean value of distance between near distance and far distance threshold
+    
+    // 
+    
+
+    return true;
+}
+
+
+
 bool LoopClosing::ComputeSim3()
 {
     // For each consistent loop candidate we try to compute a Sim3
@@ -249,20 +289,21 @@ bool LoopClosing::ComputeSim3()
     const int nInitialCandidates = mvpEnoughConsistentCandidates.size();
 
     // We compute first ORB matches for each candidate
-    // If enough matches are found, we setup a Sim3Solver
+    // If enough matches are found, we setup a Sim3Solver;
     ORBmatcher matcher(0.75,true);
 
-    vector<Sim3Solver*> vpSim3Solvers;
-    vpSim3Solvers.resize(nInitialCandidates);
+    vector<Sim3Solver*> vpSim3Solvers;  // 솔버를 가지고 있는 벡터를 생성
+    vpSim3Solvers.resize(nInitialCandidates); // 후보 개수만큼 크기를 설정
 
-    vector<vector<MapPoint*> > vvpMapPointMatches;
-    vvpMapPointMatches.resize(nInitialCandidates);
+    vector<vector<MapPoint*> > vvpMapPointMatches;  // 포인트 클라우드(맵 포인트 벡터)를 가지고 있는 벡터를 생성
+    vvpMapPointMatches.resize(nInitialCandidates);  // 후보자 만큼 생성
 
     vector<bool> vbDiscarded;
     vbDiscarded.resize(nInitialCandidates);
 
     int nCandidates=0; //candidates with enough matches
 
+    // 일관성이 보장된 후보들을 순회하며 ORB 매칭을 수행하고, Sim3Solver를 설정함
     for(int i=0; i<nInitialCandidates; i++)
     {
         KeyFrame* pKF = mvpEnoughConsistentCandidates[i];
@@ -276,9 +317,10 @@ bool LoopClosing::ComputeSim3()
             continue;
         }
 
-        int nmatches = matcher.SearchByBoW(mpCurrentKF,pKF,vvpMapPointMatches[i]);
+        int nmatches = matcher.SearchByBoW(mpCurrentKF,pKF,vvpMapPointMatches[i]); // 현재 키프레임과 후보 키프레임 사이의 맵 포인트를 매칭함
+        // vvpMapPointMatches는 후보자와 매칭이 된 삼차원 상의 맵 포인트를 의미
 
-        if(nmatches<20)
+        if(nmatches<20) // 개수가 적으면 버림
         {
             vbDiscarded[i] = true;
             continue;
@@ -287,14 +329,15 @@ bool LoopClosing::ComputeSim3()
         {
             Sim3Solver* pSolver = new Sim3Solver(mpCurrentKF,pKF,vvpMapPointMatches[i],mbFixScale);
             pSolver->SetRansacParameters(0.99,20,300);
-            vpSim3Solvers[i] = pSolver;
+            vpSim3Solvers[i] = pSolver; // 솔버 객체 자체를 저장함
         }
 
         nCandidates++;
     }
 
     bool bMatch = false;
-
+    
+    // 여기서 Sim3를 RANSAC으로 가이드 변환을 추정한 뒤, Optimizer를 사용해서 더 fine한 값을 추정함
     // Perform alternatively RANSAC iterations for each candidate
     // until one is succesful or all fail
     while(nCandidates>0 && !bMatch)
@@ -336,7 +379,7 @@ bool LoopClosing::ComputeSim3()
                 const float s = pSolver->GetEstimatedScale();
                 matcher.SearchBySim3(mpCurrentKF,pKF,vpMapPointMatches,s,R,t,7.5);
 
-                g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s);
+                g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
                 const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, pKF, vpMapPointMatches, gScm, 10, mbFixScale);
 
                 // If optimization is succesful stop ransacs and continue
@@ -345,7 +388,7 @@ bool LoopClosing::ComputeSim3()
                     bMatch = true;
                     mpMatchedKF = pKF;
                     g2o::Sim3 gSmw(Converter::toMatrix3d(pKF->GetRotation()),Converter::toVector3d(pKF->GetTranslation()),1.0);
-                    mg2oScw = gScm*gSmw;
+                    mg2oScw = gScm*gSmw;  // World -> matched candiate keyframe (pKF) -> current keyframe / 그리고 gScm는 최적화된 값이 들어감
                     mScw = Converter::toCvMat(mg2oScw);
 
                     mvpCurrentMatchedPoints = vpMapPointMatches;
@@ -364,22 +407,22 @@ bool LoopClosing::ComputeSim3()
     }
 
     // Retrieve MapPoints seen in Loop Keyframe and neighbors
-    vector<KeyFrame*> vpLoopConnectedKFs = mpMatchedKF->GetVectorCovisibleKeyFrames();
-    vpLoopConnectedKFs.push_back(mpMatchedKF);
+    vector<KeyFrame*> vpLoopConnectedKFs = mpMatchedKF->GetVectorCovisibleKeyFrames(); // 매칭된 키프레임과 공변성 관계에 있는 키프레임들을 추출함
+    vpLoopConnectedKFs.push_back(mpMatchedKF); // 
     mvpLoopMapPoints.clear();
     for(vector<KeyFrame*>::iterator vit=vpLoopConnectedKFs.begin(); vit!=vpLoopConnectedKFs.end(); vit++)
     {
         KeyFrame* pKF = *vit;
-        vector<MapPoint*> vpMapPoints = pKF->GetMapPointMatches();
+        vector<MapPoint*> vpMapPoints = pKF->GetMapPointMatches(); // 각 키 프레임 별로 맵 포인트들을 추출함
         for(size_t i=0, iend=vpMapPoints.size(); i<iend; i++)
         {
             MapPoint* pMP = vpMapPoints[i];
             if(pMP)
             {
-                if(!pMP->isBad() && pMP->mnLoopPointForKF!=mpCurrentKF->mnId)
+                if(!pMP->isBad() && pMP->mnLoopPointForKF!=mpCurrentKF->mnId) // 맵 포인트가 bad가 아니고, 현재 키프레임과 연결된 맵 포인트가 아니라면
                 {
-                    mvpLoopMapPoints.push_back(pMP);
-                    pMP->mnLoopPointForKF=mpCurrentKF->mnId;
+                    mvpLoopMapPoints.push_back(pMP); // 맵 포인트를 저장함
+                    pMP->mnLoopPointForKF = mpCurrentKF->mnId; // 현재 키프레임과 연결된 맵 포인트로 설정함
                 }
             }
         }
@@ -411,6 +454,11 @@ bool LoopClosing::ComputeSim3()
         return false;
     }
 
+}
+
+bool LoopClosing::ComputeSE3NDT()
+{
+    return true;
 }
 
 void LoopClosing::CorrectLoop()
@@ -448,7 +496,7 @@ void LoopClosing::CorrectLoop()
     // Retrive keyframes connected to the current keyframe and compute corrected Sim3 pose by propagation
     mvpCurrentConnectedKFs = mpCurrentKF->GetVectorCovisibleKeyFrames();
     mvpCurrentConnectedKFs.push_back(mpCurrentKF);
-
+    // 최적화를 진행한 후의 위치를 CorrectedSim3에 저장함
     KeyFrameAndPose CorrectedSim3, NonCorrectedSim3;
     CorrectedSim3[mpCurrentKF]=mg2oScw;
     cv::Mat Twc = mpCurrentKF->GetPoseInverse();
@@ -458,7 +506,7 @@ void LoopClosing::CorrectLoop()
         // Get Map Mutex
         unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
 
-        for(vector<KeyFrame*>::iterator vit=mvpCurrentConnectedKFs.begin(), vend=mvpCurrentConnectedKFs.end(); vit!=vend; vit++)
+        for(vector<KeyFrame*>::iterator vit=mvpCurrentConnectedKFs.begin(), vend=mvpCurrentConnectedKFs.end(); vit!=vend; vit++) // 현재 키프레임과 연결된 키프레임들을 순회
         {
             KeyFrame* pKFi = *vit;
 
@@ -466,7 +514,7 @@ void LoopClosing::CorrectLoop()
 
             if(pKFi!=mpCurrentKF)
             {
-                cv::Mat Tic = Tiw*Twc;
+                cv::Mat Tic = Tiw*Twc; //  여기서 i는 이웃 키프레임을 의미함 (current keyframe과 연결된 키프레임) / Tic는 current keyframe을 기준으로 이웃 키프레임의 위치를 의미함
                 cv::Mat Ric = Tic.rowRange(0,3).colRange(0,3);
                 cv::Mat tic = Tic.rowRange(0,3).col(3);
                 g2o::Sim3 g2oSic(Converter::toMatrix3d(Ric),Converter::toVector3d(tic),1.0);
@@ -489,8 +537,9 @@ void LoopClosing::CorrectLoop()
             g2o::Sim3 g2oCorrectedSiw = mit->second;
             g2o::Sim3 g2oCorrectedSwi = g2oCorrectedSiw.inverse();
 
-            g2o::Sim3 g2oSiw =NonCorrectedSim3[pKFi];
+            g2o::Sim3 g2oSiw = NonCorrectedSim3[pKFi];
 
+            // Covisible Landmark들의 위치를 보정 (이웃 키프레임들의 위치를 보정함)
             vector<MapPoint*> vpMPsi = pKFi->GetMapPointMatches();
             for(size_t iMP=0, endMPi = vpMPsi.size(); iMP<endMPi; iMP++)
             {
@@ -587,10 +636,10 @@ void LoopClosing::CorrectLoop()
     mpCurrentKF->AddLoopEdge(mpMatchedKF);
 
     // Launch a new thread to perform Global Bundle Adjustment
-    mbRunningGBA = true;
+    mbRunningGBA  = true;
     mbFinishedGBA = false;
-    mbStopGBA = false;
-    mpThreadGBA = new thread(&LoopClosing::RunGlobalBundleAdjustment,this,mpCurrentKF->mnId);
+    mbStopGBA     = false;
+    mpThreadGBA   = new thread(&LoopClosing::RunGlobalBundleAdjustment,this,mpCurrentKF->mnId);
 
     // Loop closed. Release Local Mapping.
     mpLocalMapper->Release();

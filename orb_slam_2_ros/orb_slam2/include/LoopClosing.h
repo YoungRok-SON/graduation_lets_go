@@ -94,7 +94,7 @@ protected:
     bool ComputeSim3();
     
     // New Feature for Compute Sim3 using NDT registration result.
-    bool ComputeSim3NDT();
+    bool ComputeSE3NDT();
 
     void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
 
