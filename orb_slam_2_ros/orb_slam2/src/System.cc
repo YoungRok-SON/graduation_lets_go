@@ -539,6 +539,11 @@ std::vector<MapPoint*> System::GetAllMapPoints() {
   return mpMap->GetAllMapPoints();
 }
 
+// Get a all keyframe pose from Map class
+std::vector<KeyFrame*> System::GetAllKeyFrames() {
+  return mpMap->GetAllKeyFrames();
+}
+
 
 bool System::SetCallStackSize (const rlim_t kNewStackSize) {
     struct rlimit rlimit;

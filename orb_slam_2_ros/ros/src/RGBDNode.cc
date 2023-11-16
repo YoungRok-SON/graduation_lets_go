@@ -72,7 +72,16 @@ void RGBDNode::ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const se
   }
 
   pcl::PointCloud<PointT>::Ptr pointcloud(new pcl::PointCloud<PointT>());
-  pcl::fromROSMsg(*msgPointCloud, *pointcloud);
+  try
+  {
+    pcl::fromROSMsg(*msgPointCloud, *pointcloud);
+  }
+  catch(const pcl::PCLException& e)
+  {
+    ROS_ERROR(" PCL Pointcloud expection: %s", e.what());
+  }
+  
+  
 
   current_frame_time_ = msgRGB->header.stamp;
 

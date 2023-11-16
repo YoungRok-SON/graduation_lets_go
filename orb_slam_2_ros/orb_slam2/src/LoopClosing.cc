@@ -75,16 +75,16 @@ void LoopClosing::Run()
                }
             }
             // Detect loop candidates and check covisibility consistency
-            if(DetectLoopNDT())
-            {
-               // Compute similarity transformation [sR|t]
-               // In the stereo/RGBD case s=1
-               if(ComputeSE3NDT())
-               {
-                   // Perform loop fusion and pose graph optimization
-                   CorrectLoop();
-               }
-            }
+            // if(DetectLoopNDT())
+            // {
+            //    // Compute similarity transformation [sR|t]
+            //    // In the stereo/RGBD case s=1
+            //    if(ComputeSE3NDT())
+            //    {
+            //        // Perform loop fusion and pose graph optimization
+            //        CorrectLoop();
+            //    }
+            // }
         }
 
         ResetIfRequested();
@@ -161,13 +161,8 @@ bool LoopClosing::DetectLoop()
         mpCurrentKF->SetErase();
         return false;
     }
-<<<<<<< HEAD
-
-    // 루프 후보 검증 - 루프 후보가 충분히 일관성이 있는지 검사
-=======
     
     // 일관성 검사 - 후보 필터링 하는데 사용
->>>>>>> 125207d290546edd441fc9f2615a252d4d217824
     // For each loop candidate check consistency with previous loop candidates
     // Each candidate expands a covisibility group (keyframes connected to the loop candidate in the covisibility graph)
     // A group is consistent with a previous group if they share at least a keyframe
@@ -274,7 +269,12 @@ bool LoopClosing::DetectLoopNDT()
     // If the distance is less than 1m, return true
     // Look ahead distance is mean value of distance between near distance and far distance threshold
     
-    // 
+    // mpMap에 접근해서 모든 키프레임 가져오기
+
+    // Look Ahead 값 가져오기
+
+
+    
     
 
     return true;

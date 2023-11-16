@@ -46,6 +46,8 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <sensor_msgs/CameraInfo.h>
 #include <std_msgs/Bool.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include "System.h"
 
@@ -85,6 +87,8 @@ class Node
     bool SaveMapSrv (orb_slam2_ros::SaveMap::Request &req, orb_slam2_ros::SaveMap::Response &res); 
     // ORB_SLAM2의 ORBParameters 클래스를 초기화하는 함수
     void LoadOrbParameters (ORB_SLAM2::ORBParameters& parameters); 
+    // New feature - Publish KeyFrame pose
+    void PublishKeyFramePose ( const std::vector<ORB_SLAM2::KeyFrame*> keyframes);
 
     // initialization Transform listener
     boost::shared_ptr<tf2_ros::Buffer> tfBuffer;
@@ -104,6 +108,7 @@ class Node
     ros::Publisher map_points_publisher_;
     ros::Publisher pose_publisher_;
     ros::Publisher status_gba_publisher_;
+    ros::Publisher keyframe_pose_publisher_;
 
     ros::ServiceServer service_server_;
 

@@ -70,6 +70,7 @@ void Node::Init () {
   }
 
   status_gba_publisher_ = node_handle_.advertise<std_msgs::Bool> (name_of_node_+"/gba_running", 1);
+  keyframe_pose_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/keyframe_pose", 1);
 }
 
 // Node update and publish
@@ -98,6 +99,12 @@ void Node::Update ()
   }
 
   PublishGBAStatus (orb_slam_->isRunningGBA());
+
+  // Publish KeyFrame pose
+  if ( keyframe_pose_publisher_.getNumSubscribers() > 0 )
+  {
+    PublishKeyFramePose( orb_slam_->GetAllKeyFrames() );
+  }
 
 }
 
@@ -206,6 +213,113 @@ void Node::PublishRenderedImage (cv::Mat image) {
   const sensor_msgs::ImagePtr rendered_image_msg = cv_bridge::CvImage(header, "bgr8", image).toImageMsg();
   rendered_image_publisher_.publish(rendered_image_msg);
 }
+
+  
+void Node::PublishKeyFramePose( const std::vector<ORB_SLAM2::KeyFrame*> keyframes) 
+{
+  if (keyframes.empty())
+  {
+    ROS_WARN("Keyframe vector is empty!");
+    return;
+  }
+  
+  ROS_INFO("Marker Generation");
+  // Generate 3 arrows for each keyframe
+  visualization_msgs::MarkerArray marker_array;
+  visualization_msgs::Marker marker;
+  marker.header.frame_id = "map";
+  marker.header.stamp = ros::Time( keyframes.back()->mTimeStamp );
+  marker.ns = "keyframe_pose";
+  marker.type = visualization_msgs::Marker::ARROW;
+  marker.action = visualization_msgs::Marker::ADD;
+  marker.lifetime = ros::Duration(0.1);
+
+
+  ROS_INFO("Loop");
+  for ( auto it = keyframes.begin(); it != keyframes.end(); it++) {
+    // Get the keyframe pose
+    cv::Mat position = (*it)->GetPose();
+
+    // Convert the pose to a transform
+    tf2::Transform tf_position = TransformFromMat(position);
+
+    // Get the position and orientation of the transform
+    tf2::Vector3 position_vec = tf_position.getOrigin();
+    tf2::Quaternion orientation_quat = tf_position.getRotation();
+
+    // Create the x, y, and z arrows
+    visualization_msgs::Marker x_arrow = marker;
+    x_arrow.id = (*it)->mnId * 3;
+    x_arrow.pose.position.x = position_vec.x();
+    x_arrow.pose.position.y = position_vec.y();
+    x_arrow.pose.position.z = position_vec.z();
+    x_arrow.pose.orientation.x = orientation_quat.x();
+    x_arrow.pose.orientation.y = orientation_quat.y();
+    x_arrow.pose.orientation.z = orientation_quat.z();
+    x_arrow.pose.orientation.w = orientation_quat.w();
+    x_arrow.scale.x = 0.2;
+    x_arrow.scale.y = 0.01;
+    x_arrow.scale.z = 0.01;
+    x_arrow.color.r = 1.0;
+    x_arrow.color.g = 0.0;
+    x_arrow.color.b = 0.0;
+    x_arrow.color.a = 1.0;
+
+    // Create the y axis arrow by rotate the x axis arrow
+    visualization_msgs::Marker y_arrow = marker;
+    y_arrow.id = (*it)->mnId * 3 + 1;
+    y_arrow.pose.position.x = position_vec.x();
+    y_arrow.pose.position.y = position_vec.y();
+    y_arrow.pose.position.z = position_vec.z();
+    // Rotate axis by 90 degrees around z axis of x_arrow
+    tf2::Quaternion y_quat;
+    y_quat.setRPY(0, 0, M_PI/2);
+    tf2::Quaternion y_axis = orientation_quat * y_quat;
+    y_arrow.pose.orientation.x = y_axis.x();
+    y_arrow.pose.orientation.y = y_axis.y();
+    y_arrow.pose.orientation.z = y_axis.z();
+    y_arrow.pose.orientation.w = y_axis.w();
+    y_arrow.scale.x = 0.2;
+    y_arrow.scale.y = 0.01;
+    y_arrow.scale.z = 0.01;
+    y_arrow.color.r = 0.0;
+    y_arrow.color.g = 1.0;
+    y_arrow.color.b = 0.0;
+    y_arrow.color.a = 1.0;
+
+    // Cretae the z axis arrow by rotating the x axis arrow
+    visualization_msgs::Marker z_arrow = marker;
+    z_arrow.id = (*it)->mnId * 3 + 2;
+    z_arrow.pose.position.x = position_vec.x();
+    z_arrow.pose.position.y = position_vec.y();
+    z_arrow.pose.position.z = position_vec.z();
+    tf2::Quaternion z_quat;
+    z_quat.setRPY(0, -M_PI/2, 0);
+    tf2::Quaternion z_axis = orientation_quat * z_quat;
+    z_arrow.pose.orientation.x = z_axis.x();
+    z_arrow.pose.orientation.y = z_axis.y();
+    z_arrow.pose.orientation.z = z_axis.z();
+    z_arrow.pose.orientation.w = z_axis.w();
+    z_arrow.scale.x = 0.2;
+    z_arrow.scale.y = 0.01;
+    z_arrow.scale.z = 0.01;
+    z_arrow.color.r = 0.0;
+    z_arrow.color.g = 0.0;
+    z_arrow.color.b = 1.0;
+    z_arrow.color.a = 1.0;
+    
+    // Add the arrows to the marker array
+    marker_array.markers.push_back(x_arrow);
+    marker_array.markers.push_back(y_arrow);
+    marker_array.markers.push_back(z_arrow);
+  }
+  ROS_INFO("Loop End");
+
+  // Publish the marker array
+  keyframe_pose_publisher_.publish(marker_array);
+  ROS_INFO("Pub End!");
+}
+  
 
 
 tf2::Transform Node::TransformFromMat (cv::Mat position_mat) {

@@ -51,7 +51,7 @@ class RGBDNode : public Node // Node 클래스를 상속받음
     ~RGBDNode ();
     // RGBD Node image callback
     void ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const sensor_msgs::ImageConstPtr& msgD, const sensor_msgs::PointCloud2ConstPtr& msgPointCloud) ;
-
+    
   private:
     // Subscribe message filter for synchronized RGB and Depth images
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image, sensor_msgs::PointCloud2> sync_pol;

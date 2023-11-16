@@ -144,6 +144,9 @@ public:
 
     std::vector<MapPoint*> GetAllMapPoints();
 
+    // Get a all keyframe pose from Map class
+    std::vector<KeyFrame*> GetAllKeyFrames();
+
 private:
     bool SetCallStackSize (const rlim_t kNewStackSize);
 

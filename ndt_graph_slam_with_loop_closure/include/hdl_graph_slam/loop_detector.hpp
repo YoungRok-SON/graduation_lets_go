@@ -118,7 +118,7 @@ namespace hdl_graph_slam
       }
 
       std::vector<KeyFrame::Ptr> candidates;
-      candidates.reserve(32); // GPT한테 물어보자
+      candidates.reserve(32);
 
       // double distance_closest = distance_thresh;
       double distance_closest = distance_thresh;  // need to be changed
