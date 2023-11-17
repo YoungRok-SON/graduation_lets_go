@@ -89,6 +89,12 @@ public:
         unique_lock<mutex> lock(mMutexLoopQueue);
         return mCandidatePCDLoopPair;
     }
+    // Get the point position loop closure candidate pair.
+    std::vector<cv::Mat> GetLoopClosingPairPoint()
+    {
+        unique_lock<mutex> lock(mMutexLoopQueue);
+        return mCandidatePCDLoopPairPoint;
+    }
 
 protected:
 
@@ -133,6 +139,7 @@ protected:
     // New feature
     cv::Mat mlookAhead;
     std::vector<KeyFrame*> mCandidatePCDLoopPair;
+    std::vector<cv::Mat> mCandidatePCDLoopPairPoint;
 
     // Loop detector parameters
     float mnCovisibilityConsistencyTh;

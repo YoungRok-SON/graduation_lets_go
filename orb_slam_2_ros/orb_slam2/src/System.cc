@@ -550,6 +550,12 @@ std::vector<KeyFrame*> System::GetLoopClosingPair()
   return mpLoopCloser->GetLoopClosingPair();
 }
 
+// Get Loop Closing Pair Point
+std::vector<cv::Mat> System::GetLoopClosingPairPoint() 
+{
+  return mpLoopCloser->GetLoopClosingPairPoint();
+}
+
 bool System::SetCallStackSize (const rlim_t kNewStackSize) {
     struct rlimit rlimit;
     int operation_result;

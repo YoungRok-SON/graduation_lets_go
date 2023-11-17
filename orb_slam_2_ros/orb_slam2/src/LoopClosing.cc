@@ -37,14 +37,15 @@ namespace ORB_SLAM2
 
 LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale):
     mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
-    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
+    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0),mLastLoopKFidPCD(0), mbRunningGBA(false), mbFinishedGBA(true),
     mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false)
 {
     mnCovisibilityConsistencyTh = 3;
     
     // Set lookahead position
     mlookAhead = cv::Mat::eye(4,4,CV_32F);
-    mlookAhead.at<float>(0,3) = (0.1+4) * 0.5; // near distance threshold = 0.1m, far distance threshold = 4m
+    mlookAhead.at<float>(2,3) = (0.1+4) * 0.5; // near distance threshold = 0.1m, far distance threshold = 4m
+    
 }
 
 void LoopClosing::SetTracker(Tracking *pTracker)
@@ -261,7 +262,6 @@ bool LoopClosing::DetectLoopNDT()
     //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
     if(mpORBCheckedKF->mnId < mLastLoopKFidPCD+20)
     {
-        ROS_INFO("distance check and it too close.");
         mpORBCheckedKF->SetErase();
         return false;
     }
@@ -275,31 +275,44 @@ bool LoopClosing::DetectLoopNDT()
     double minScore = 1.0;
     int minScoreIdx = -1;
     // Get current keyframe's pose
-    cv::Mat current_pose = mpORBCheckedKF->GetPose();
+    cv::Mat currentKFPose =  mpORBCheckedKF->GetPoseInverse() ;
     // Check distance between all keyframes and current keyframe
     for ( int i = 0; i < keyframes.size(); i++ )
     {
         // check if keyframe has deleted
         if ( !keyframes[i]->mnId || keyframes[i]->isBad() || keyframes[i]->mnId == mpCurrentKF->mnId ) // 키프레임이 삭제되었거나, 현재 키프레임이거나, bad 키프레임이거나, 삭제된 키프레임이면
         {
-            ROS_INFO("keyframe is bad");
             continue;
         }
-        ROS_INFO("keyframe is okay");
-        // Get keyframe's pose
-        cv::Mat keyframe_pose = keyframes[i]->GetPose();
-        // Get lookahead pose of keyframe
-        cv::Mat lookahead_pose = keyframe_pose * mlookAhead;
+
+        // Get Cadidate keyframe's pose
+        cv::Mat CadidateKFPose = keyframes[i]->GetPoseInverse();
+        if (mpORBCheckedKF->mnId < keyframes[i]->mnId + 25)
+        {
+            continue;
+        }
+
+        // Get lookahead pose of keyframes
+        cv::Mat lookaheadPoseSource   = currentKFPose * mlookAhead;
+        cv::Mat lookaheadPoseTarget = CadidateKFPose * mlookAhead;
+
         // Get distance between current keyframe and keyframe
-        float distance = sqrt(pow(current_pose.at<float>(0,3) - lookahead_pose.at<float>(0,3), 2) + 
-                              pow(current_pose.at<float>(1,3) - lookahead_pose.at<float>(1,3), 2) + 
-                              pow(current_pose.at<float>(2,3) - lookahead_pose.at<float>(2,3), 2));
+        float distance = norm(lookaheadPoseSource - lookaheadPoseTarget, cv::NORM_L2);
         
         // If the distance is less than 1m, return true
         if ( distance < minScore ) // this value is teseted value
         {
             // check the smallest keyframe
             minScore = distance;
+            mCandidatePCDLoopPairPoint.clear();
+            mCandidatePCDLoopPairPoint.push_back(lookaheadPoseSource);
+            mCandidatePCDLoopPairPoint.push_back(lookaheadPoseTarget);
+            ROS_INFO_STREAM("Current KF Pose: " << currentKFPose);
+            ROS_INFO_STREAM("Lookahead Pose: " << lookaheadPoseSource);
+            ROS_INFO_STREAM("Candidate KF Pose: " << CadidateKFPose);
+            ROS_INFO_STREAM("Lookahead Pose: " << lookaheadPoseTarget);
+            ROS_INFO("distance : %f", distance);
+
             // set this keyframe not to erased
             keyframes[i]->SetNotErase();
             // set previous smallest distance keyframe to erased
@@ -318,7 +331,7 @@ bool LoopClosing::DetectLoopNDT()
     {
         mCandidatePCDLoopPair.push_back(mpORBCheckedKF);
         mCandidatePCDLoopPair.push_back(mpMatchedKFPCD);
-        mLastLoopKFidPCD = mpCurrentKF->mnId;
+        // mLastLoopKFidPCD = mpCurrentKF->mnId; -> Update 후에 설정해야함
         cout << "Current Keyframe ID : " << mpCurrentKF->mnId << endl;
         cout << "Loop Closing Candidate Keyframe ID : " << mpMatchedKFPCD->mnId << endl;
         return true;
@@ -748,6 +761,7 @@ void LoopClosing::ResetIfRequested()
     {
         mlpLoopKeyFrameQueue.clear();
         mLastLoopKFid=0;
+        mLastLoopKFidPCD = 0;
         mbResetRequested=false;
     }
 }

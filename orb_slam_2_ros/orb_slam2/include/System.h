@@ -150,6 +150,9 @@ public:
     // Get Loop Closing Pair
     std::vector<KeyFrame*> GetLoopClosingPair();
 
+    std::vector<cv::Mat> GetLoopClosingPairPoint() ;
+
+
 private:
     bool SetCallStackSize (const rlim_t kNewStackSize);
 
