@@ -260,7 +260,7 @@ bool LoopClosing::DetectLoopNDT()
 
 
     //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
-    if(mpORBCheckedKF->mnId < mLastLoopKFidPCD+20)
+    if(mpORBCheckedKF->mnId < mLastLoopKFidPCD+30)
     {
         mpORBCheckedKF->SetErase();
         return false;
@@ -279,6 +279,14 @@ bool LoopClosing::DetectLoopNDT()
     // Check distance between all keyframes and current keyframe
     for ( int i = 0; i < keyframes.size(); i++ )
     {
+        // Check accumulated distance between current keyframe and keyframe
+        float accumDistance = mpORBCheckedKF->GetAccumDistance() - keyframes[i]->GetAccumDistance();
+        if ( accumDistance < 10.0 )
+        {
+            // ROS_INFO_STREAM("accumDistance() : " << accumDistance  );
+            continue;
+        }
+
         // check if keyframe has deleted
         if ( !keyframes[i]->mnId || keyframes[i]->isBad() || keyframes[i]->mnId == mpCurrentKF->mnId ) // 키프레임이 삭제되었거나, 현재 키프레임이거나, bad 키프레임이거나, 삭제된 키프레임이면
         {
@@ -293,7 +301,7 @@ bool LoopClosing::DetectLoopNDT()
         }
 
         // Get lookahead pose of keyframes
-        cv::Mat lookaheadPoseSource   = currentKFPose * mlookAhead;
+        cv::Mat lookaheadPoseSource   = currentKFPose * mlookAhead; // camera view point to world coordinate -> this is z(forward), x(right), y(down) coordinate..
         cv::Mat lookaheadPoseTarget = CadidateKFPose * mlookAhead;
 
         // Get distance between current keyframe and keyframe
@@ -307,11 +315,6 @@ bool LoopClosing::DetectLoopNDT()
             mCandidatePCDLoopPairPoint.clear();
             mCandidatePCDLoopPairPoint.push_back(lookaheadPoseSource);
             mCandidatePCDLoopPairPoint.push_back(lookaheadPoseTarget);
-            ROS_INFO_STREAM("Current KF Pose: " << currentKFPose);
-            ROS_INFO_STREAM("Lookahead Pose: " << lookaheadPoseSource);
-            ROS_INFO_STREAM("Candidate KF Pose: " << CadidateKFPose);
-            ROS_INFO_STREAM("Lookahead Pose: " << lookaheadPoseTarget);
-            ROS_INFO("distance : %f", distance);
 
             // set this keyframe not to erased
             keyframes[i]->SetNotErase();
@@ -332,8 +335,7 @@ bool LoopClosing::DetectLoopNDT()
         mCandidatePCDLoopPair.push_back(mpORBCheckedKF);
         mCandidatePCDLoopPair.push_back(mpMatchedKFPCD);
         // mLastLoopKFidPCD = mpCurrentKF->mnId; -> Update 후에 설정해야함
-        cout << "Current Keyframe ID : " << mpCurrentKF->mnId << endl;
-        cout << "Loop Closing Candidate Keyframe ID : " << mpMatchedKFPCD->mnId << endl;
+        cout << "--- Keyframe view-point-based loop detected : " << mpMatchedKFPCD->mnId << endl;
         return true;
     }
     mpORBCheckedKF->SetErase();

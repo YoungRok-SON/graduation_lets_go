@@ -1154,6 +1154,7 @@ void Tracking::CreateNewKeyFrame()
     mpLocalMapper->SetNotStop(false);
 
     mnLastKeyFrameId = mCurrentFrame.mnId;
+    pKF->SetAccumDistance( mpLastKeyFrame->GetAccumDistance() , mpLastKeyFrame->GetPose() );
     mpLastKeyFrame = pKF;
 }
 

@@ -59,6 +59,9 @@ public:
     cv::Mat GetRotation();
     cv::Mat GetTranslation();
 
+    float   GetAccumDistance(); // New Feature
+    void    SetAccumDistance(float lastKeyFrameAccumDistance, cv::Mat Tcw); // New Feature
+
     // Bag of Words Representation
     void ComputeBoW();
 
@@ -192,6 +195,9 @@ public:
     const int mnMaxX;
     const int mnMaxY;
     const cv::Mat mK;
+
+    // Accumulted translation distance since start position
+    float mAccumDistance;
 
 
     // The following variables need to be accessed trough a mutex to be thread safe.

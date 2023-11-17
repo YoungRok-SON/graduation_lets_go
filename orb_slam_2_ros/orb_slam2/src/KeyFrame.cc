@@ -42,7 +42,7 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     mnMaxY(F.mnMaxY), mK(F.mK), mvpMapPoints(F.mvpMapPoints), mpKeyFrameDB(pKFDB),
     mpORBvocabulary(F.mpORBvocabulary), mbFirstConnection(true), mpParent(NULL), mbNotErase(false),
     mbToBeErased(false), mbBad(false), mHalfBaseline(F.mb/2), mpMap(pMap),
-    mPointCloud(F.mPointCloud)
+    mPointCloud(F.mPointCloud), mAccumDistance(0)
 {
     mnId=nNextId++;
 
@@ -55,9 +55,12 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     }
 
     SetPose(F.mTcw);    
+
+    if (nNextId == 1)
+        mAccumDistance = norm(Tcw.rowRange(0,3).col(3), cv::NORM_L2);
 }
 
-void KeyFrame::ComputeBoW()
+void    KeyFrame::ComputeBoW()
 {
     if(mBowVec.empty() || mFeatVec.empty())
     {
@@ -68,7 +71,7 @@ void KeyFrame::ComputeBoW()
     }
 }
 
-void KeyFrame::SetPose(const cv::Mat &Tcw_)
+void    KeyFrame::SetPose(const cv::Mat &Tcw_)
 {
     unique_lock<mutex> lock(mMutexPose);
     Tcw_.copyTo(Tcw);
@@ -106,6 +109,19 @@ cv::Mat KeyFrame::GetStereoCenter()
 {
     unique_lock<mutex> lock(mMutexPose);
     return Cw.clone();
+}
+
+float   KeyFrame::GetAccumDistance()
+{
+    unique_lock<mutex> lock(mMutexPose);
+    return mAccumDistance;
+}
+
+void    KeyFrame::SetAccumDistance(float lastKeyFrameAccumDistance, cv::Mat Tcw)
+{
+    unique_lock<mutex> lock(mMutexPose);
+    mAccumDistance = lastKeyFrameAccumDistance + norm(Tcw.rowRange(0,3).col(3) - this->Tcw.rowRange(0,3).col(3), cv::NORM_L2);
+    // cout << "mAccumDistance: " <<  mAccumDistance << endl;
 }
 
 
