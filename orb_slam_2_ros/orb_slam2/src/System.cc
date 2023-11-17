@@ -540,10 +540,15 @@ std::vector<MapPoint*> System::GetAllMapPoints() {
 }
 
 // Get a all keyframe pose from Map class
-std::vector<KeyFrame*> System::GetAllKeyFrames() {
+std::vector<KeyFrame*> System::GetAllKeyFrames() 
+{
   return mpMap->GetAllKeyFrames();
 }
-
+// Get Loop Closing Pair
+std::vector<KeyFrame*> System::GetLoopClosingPair() 
+{
+  return mpLoopCloser->GetLoopClosingPair();
+}
 
 bool System::SetCallStackSize (const rlim_t kNewStackSize) {
     struct rlimit rlimit;

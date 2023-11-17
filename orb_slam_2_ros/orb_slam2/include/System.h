@@ -147,6 +147,9 @@ public:
     // Get a all keyframe pose from Map class
     std::vector<KeyFrame*> GetAllKeyFrames();
 
+    // Get Loop Closing Pair
+    std::vector<KeyFrame*> GetLoopClosingPair();
+
 private:
     bool SetCallStackSize (const rlim_t kNewStackSize);
 

@@ -41,6 +41,10 @@ LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, 
     mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false)
 {
     mnCovisibilityConsistencyTh = 3;
+    
+    // Set lookahead position
+    mlookAhead = cv::Mat::eye(4,4,CV_32F);
+    mlookAhead.at<float>(0,3) = (0.1+4) * 0.5; // near distance threshold = 0.1m, far distance threshold = 4m
 }
 
 void LoopClosing::SetTracker(Tracking *pTracker)
@@ -75,16 +79,16 @@ void LoopClosing::Run()
                }
             }
             // Detect loop candidates and check covisibility consistency
-            // if(DetectLoopNDT())
-            // {
-            //    // Compute similarity transformation [sR|t]
-            //    // In the stereo/RGBD case s=1
+            else if(DetectLoopNDT())
+            {
+               // Compute similarity transformation [sR|t]
+               // In the stereo/RGBD case s=1
             //    if(ComputeSE3NDT())
             //    {
-            //        // Perform loop fusion and pose graph optimization
-            //        CorrectLoop();
+                   // Perform loop fusion and pose graph optimization
+                //    CorrectLoop();
             //    }
-            // }
+            }
         }
 
         ResetIfRequested();
@@ -116,6 +120,7 @@ bool LoopClosing::DetectLoop()
     {// 키 프레임 추출 및 대기열 관리
         unique_lock<mutex> lock(mMutexLoopQueue);
         mpCurrentKF = mlpLoopKeyFrameQueue.front();
+        mpORBCheckedKF = mpCurrentKF;
         mlpLoopKeyFrameQueue.pop_front();
         // Avoid that a keyframe can be erased while it is being process by this thread
         mpCurrentKF->SetNotErase();
@@ -248,36 +253,78 @@ bool LoopClosing::DetectLoop()
 
 bool LoopClosing::DetectLoopNDT()
 {
-    // Get a new KeyFrame
-    {
-        unique_lock<mutex> lock(mMutexLoopQueue);
-        mpCurrentKF = mlpLoopKeyFrameQueue.front();
-        mlpLoopKeyFrameQueue.pop_front();
-        // Avoid that a keyframe can be erased while it is being process by this thread
-        mpCurrentKF->SetNotErase();
-    }
+
+    // Avoid that a keyframe can be erased while it is being process by this thread
+    mpORBCheckedKF->SetNotErase();
+
 
     //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
-    if(mpCurrentKF->mnId < mLastLoopKFid+10)
+    if(mpORBCheckedKF->mnId < mLastLoopKFidPCD+20)
     {
-        mpKeyFrameDB->add(mpCurrentKF);
-        mpCurrentKF->SetErase();
+        ROS_INFO("distance check and it too close.");
+        mpORBCheckedKF->SetErase();
         return false;
     }
-
+    
     // Compare Look ahead distance between current KF and last loop KF
     // If the distance is less than 1m, return true
     // Look ahead distance is mean value of distance between near distance and far distance threshold
-    
+    mCandidatePCDLoopPair.clear();
     // mpMap에 접근해서 모든 키프레임 가져오기
-
-    // Look Ahead 값 가져오기
-
-
-    
-    
-
-    return true;
+    std::vector<KeyFrame*> keyframes = mpMap->GetAllKeyFrames();
+    double minScore = 1.0;
+    int minScoreIdx = -1;
+    // Get current keyframe's pose
+    cv::Mat current_pose = mpORBCheckedKF->GetPose();
+    // Check distance between all keyframes and current keyframe
+    for ( int i = 0; i < keyframes.size(); i++ )
+    {
+        // check if keyframe has deleted
+        if ( !keyframes[i]->mnId || keyframes[i]->isBad() || keyframes[i]->mnId == mpCurrentKF->mnId ) // 키프레임이 삭제되었거나, 현재 키프레임이거나, bad 키프레임이거나, 삭제된 키프레임이면
+        {
+            ROS_INFO("keyframe is bad");
+            continue;
+        }
+        ROS_INFO("keyframe is okay");
+        // Get keyframe's pose
+        cv::Mat keyframe_pose = keyframes[i]->GetPose();
+        // Get lookahead pose of keyframe
+        cv::Mat lookahead_pose = keyframe_pose * mlookAhead;
+        // Get distance between current keyframe and keyframe
+        float distance = sqrt(pow(current_pose.at<float>(0,3) - lookahead_pose.at<float>(0,3), 2) + 
+                              pow(current_pose.at<float>(1,3) - lookahead_pose.at<float>(1,3), 2) + 
+                              pow(current_pose.at<float>(2,3) - lookahead_pose.at<float>(2,3), 2));
+        
+        // If the distance is less than 1m, return true
+        if ( distance < minScore ) // this value is teseted value
+        {
+            // check the smallest keyframe
+            minScore = distance;
+            // set this keyframe not to erased
+            keyframes[i]->SetNotErase();
+            // set previous smallest distance keyframe to erased
+            if ( minScoreIdx != -1 )
+            {
+                keyframes[minScoreIdx]->SetErase();
+            }
+            // Save loop closing candiate keyframe
+            mpMatchedKFPCD = keyframes[i];
+            // save previous smallest distance keyframe index
+            minScoreIdx = i;
+        }
+    }
+    // if minsScore is not changed, return false
+    if(minScoreIdx != -1)
+    {
+        mCandidatePCDLoopPair.push_back(mpORBCheckedKF);
+        mCandidatePCDLoopPair.push_back(mpMatchedKFPCD);
+        mLastLoopKFidPCD = mpCurrentKF->mnId;
+        cout << "Current Keyframe ID : " << mpCurrentKF->mnId << endl;
+        cout << "Loop Closing Candidate Keyframe ID : " << mpMatchedKFPCD->mnId << endl;
+        return true;
+    }
+    mpORBCheckedKF->SetErase();
+    return false;
 }
 
 

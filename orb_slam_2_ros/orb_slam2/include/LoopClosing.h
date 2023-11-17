@@ -71,6 +71,7 @@ public:
         unique_lock<std::mutex> lock(mMutexGBA);
         return mbRunningGBA;
     }
+    
     bool isFinishedGBA(){
         unique_lock<std::mutex> lock(mMutexGBA);
         return mbFinishedGBA;
@@ -81,6 +82,13 @@ public:
     bool isFinished();
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    
+    // Get the loop closure candidate pair.
+    std::vector<KeyFrame*> GetLoopClosingPair()
+    {
+        unique_lock<mutex> lock(mMutexLoopQueue);
+        return mCandidatePCDLoopPair;
+    }
 
 protected:
 
@@ -122,12 +130,18 @@ protected:
 
     std::mutex mMutexLoopQueue;
 
+    // New feature
+    cv::Mat mlookAhead;
+    std::vector<KeyFrame*> mCandidatePCDLoopPair;
+
     // Loop detector parameters
     float mnCovisibilityConsistencyTh;
 
     // Loop detector variables
     KeyFrame* mpCurrentKF;
+    KeyFrame* mpORBCheckedKF;
     KeyFrame* mpMatchedKF;
+    KeyFrame* mpMatchedKFPCD;
     std::vector<ConsistentGroup> mvConsistentGroups;
     std::vector<KeyFrame*> mvpEnoughConsistentCandidates;
     std::vector<KeyFrame*> mvpCurrentConnectedKFs;
@@ -137,6 +151,7 @@ protected:
     g2o::Sim3 mg2oScw;
 
     long unsigned int mLastLoopKFid;
+    long unsigned int mLastLoopKFidPCD;
 
     // Variables related to Global Bundle Adjustment
     bool mbRunningGBA;
