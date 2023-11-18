@@ -40,7 +40,6 @@ class Tracking;
 class LocalMapping;
 class KeyFrameDatabase;
 
-
 class LoopClosing
 {
 public:
@@ -106,7 +105,7 @@ protected:
     bool ComputeSim3();
     
     // New Feature for Compute Sim3 using NDT registration result.
-    bool ComputeSE3NDT();
+    bool ComputeSim3NDT();
 
     void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
 
@@ -140,6 +139,7 @@ protected:
     std::pair<cv::Mat,cv::Mat>     mPairCandidateLoopPCDPoint;
     std::vector<KeyFrame*>         mvpSubMapKFs;
     int                            mNumSubmapKFs;
+    float                          mSubmapVoxleSize;
     
 
     // Loop detector parameters

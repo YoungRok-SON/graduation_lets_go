@@ -111,9 +111,10 @@ cv::Mat KeyFrame::GetStereoCenter()
     return Cw.clone();
 }
 
+
+// new features
 float   KeyFrame::GetAccumDistance()
 {
-    unique_lock<mutex> lock(mMutexPose);
     return mAccumDistance;
 }
 
@@ -124,6 +125,10 @@ void    KeyFrame::SetAccumDistance(float lastKeyFrameAccumDistance, cv::Mat Tcw)
     // cout << "mAccumDistance: " <<  mAccumDistance << endl;
 }
 
+pcl::PointCloud<PointT>::Ptr KeyFrame::GetPointCloud()
+{
+    return mPointCloud;
+}
 
 cv::Mat KeyFrame::GetRotation()
 {

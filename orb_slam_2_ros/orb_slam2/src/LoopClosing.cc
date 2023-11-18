@@ -28,8 +28,11 @@
 
 #include "ORBmatcher.h"
 
+
 #include<mutex>
 #include<thread>
+
+#include <pcl/octree/octree_search.h>
 
 
 namespace ORB_SLAM2
@@ -38,7 +41,7 @@ namespace ORB_SLAM2
 LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale):
     mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0),mLastLoopKFidPCD(0), mbRunningGBA(false), mbFinishedGBA(true),
-    mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false), mNumSubmapKFs(4)
+    mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false), mNumSubmapKFs(4), mSubmapVoxleSize(0.05)
 {
     mnCovisibilityConsistencyTh = 3;
     
@@ -356,10 +359,10 @@ bool LoopClosing::DetectLoopNDT()
             minScoreIdx = accessibleBack - mNumSubmapKFs; 
             accessibleBack = keyframes.size();
         }
-        ROS_INFO("keyframe size: %ld", keyframes.size());
-        ROS_INFO("accessibleFront Idx: %d", accessibleFront);
-        ROS_INFO("accessibleBack Idx: %d", accessibleBack);
-        ROS_INFO("Target Keyframe Idx: %d", minScoreIdx);
+        // ROS_INFO("keyframe size: %ld", keyframes.size());
+        // ROS_INFO("accessibleFront Idx: %d", accessibleFront);
+        // ROS_INFO("accessibleBack Idx: %d", accessibleBack);
+        // ROS_INFO("Target Keyframe Idx: %d", minScoreIdx);
         // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
 
         for (int i = accessibleFront; i < accessibleBack; i++)
@@ -368,7 +371,7 @@ bool LoopClosing::DetectLoopNDT()
         }
         
         // mLastLoopKFidPCD = mpCurrentKF->mnId; -> Update 후에 설정해야함
-        cout << "--- Keyframe view-point-based loop detected Submap Size: " << mvpSubMapKFs.size() << endl;
+        cout << "--- Keyframe view-point-based loop detected Submap Size: " << mvpSubMapKFs.size() << " ---" << endl;
         return true;
     }
     mpORBCheckedKF->SetErase();
@@ -555,16 +558,58 @@ bool LoopClosing::ComputeSim3()
 }
 
 // Generate Sim3 from NDT registration result
-bool LoopClosing::ComputeSE3NDT()
+bool LoopClosing::ComputeSim3NDT()
 {
     /* Generate Submap from mvpSubMapKFs using relative pose among closest keyframe and near keyframes */
-    // Get relative pose among closest keyframe and near keyframes
-    std::vector<cv::Mat> relativePoses;
-    pcl::PointCloud<PointT>::Ptr submapCloud(new pcl::PointCloud<PointT>());
-    cv::Mat relPoseClosest2Current = mPairCandidateLoopPCD.first.inv() * mPairCandidateLoopPCDP.second->GetPose();
-    // Get relative pose between closest keyframe and current keyframe
-     
     
+    // Get relative pose between closest keyframe and current keyframe
+    cv::Mat Tst = mPairCandidateLoopPCD.first->GetPose() * mPairCandidateLoopPCD.second->GetPoseInverse(); // target(candiate keyframe:Tcw) -> source(current keyframe:Twc)
+    Eigen::Matrix4f Tst_eigen = Eigen::Matrix4f::Identity();
+    Tst_eigen = Converter::toMatrix4f(Tst);
+    
+    // Generate submap pointcloud 
+    pcl::PointCloud<PointT>::Ptr submapCloud(new pcl::PointCloud<PointT>());
+    submapCloud->reserve(mPairCandidateLoopPCD.second->GetPointCloud()->size() * mvpSubMapKFs.size());
+    Eigen::Matrix4f Tnt_eigen = Eigen::Matrix4f::Identity();
+
+    for (const auto& candiKF : mvpSubMapKFs)
+    {
+        // Calculate relative pose between closest keyframe to candiKF.
+        cv::Mat Tnt = candiKF->GetPose() * mPairCandidateLoopPCD.second->GetPoseInverse(); // n:near(candiate keyframe:Tcw) <- target(closest keyframe:Twc)
+        Tnt_eigen = Converter::toMatrix4f(Tnt);
+
+        for (const auto& point : candiKF->GetPointCloud()->points)
+        {
+            PointT destPoint;
+            destPoint.getVector4fMap() = Tnt_eigen * point.getVector4fMap();
+            destPoint.r = point.r;
+            destPoint.g = point.g;
+            destPoint.b = point.b;
+            submapCloud->push_back(destPoint);
+        }
+    }
+
+    // Voxel filter using octree!
+    submapCloud->width = submapCloud->size();
+    submapCloud->height = 1;
+    submapCloud->is_dense = false;
+    
+    pcl::octree::OctreePointCloud<PointT> octree(mSubmapVoxleSize);
+    octree.setInputCloud(submapCloud);
+    octree.addPointsFromInputCloud();
+
+    pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>());
+    octree.getOccupiedVoxelCenters(filtered->points);
+
+    filtered->width = filtered->size();
+    filtered->height = 1;
+    filtered->is_dense = false;
+    
+    // Now time to do registration ~
+    
+
+
+
     return true;
 }
 

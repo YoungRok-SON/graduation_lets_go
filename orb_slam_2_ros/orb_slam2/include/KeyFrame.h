@@ -59,8 +59,11 @@ public:
     cv::Mat GetRotation();
     cv::Mat GetTranslation();
 
-    float   GetAccumDistance(); // New Feature
-    void    SetAccumDistance(float lastKeyFrameAccumDistance, cv::Mat Tcw); // New Feature
+    // New feature
+    float   GetAccumDistance();
+    void    SetAccumDistance(float lastKeyFrameAccumDistance, cv::Mat Tcw);
+    pcl::PointCloud<PointCloudT>::Ptr GetPointCloud();
+
 
     // Bag of Words Representation
     void ComputeBoW();
