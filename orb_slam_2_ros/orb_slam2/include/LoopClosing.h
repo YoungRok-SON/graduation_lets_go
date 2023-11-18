@@ -83,20 +83,16 @@ public:
 
     bool isFinished();
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
     // Get the loop closure candidate pair.
-    std::pair<KeyFrame*, KeyFrame*>  GetLoopClosingPair()
-    {
-        unique_lock<mutex> lock(mMutexLoopQueue);
-        return mPairCandidateLoopPCD;
-    }
+    std::pair<KeyFrame*, KeyFrame*>  GetLoopClosingPair();
+
     // Get the point position loop closure candidate pair.
-    std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint()
-    {
-        unique_lock<mutex> lock(mMutexLoopQueue);
-        return mPairCandidateLoopPCDPoint;
-    }
+    std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint();
+
+    std::vector<KeyFrame*> GetSubmapKFs();
+    
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 protected:
 
@@ -142,6 +138,9 @@ protected:
     cv::Mat mlookAhead;
     std::pair<KeyFrame*,KeyFrame*> mPairCandidateLoopPCD;
     std::pair<cv::Mat,cv::Mat>     mPairCandidateLoopPCDPoint;
+    std::vector<KeyFrame*>         mvpSubMapKFs;
+    int                            mNumSubmapKFs;
+    
 
     // Loop detector parameters
     float mnCovisibilityConsistencyTh;

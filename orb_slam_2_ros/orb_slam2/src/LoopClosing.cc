@@ -38,7 +38,7 @@ namespace ORB_SLAM2
 LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale):
     mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
     mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0),mLastLoopKFidPCD(0), mbRunningGBA(false), mbFinishedGBA(true),
-    mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false)
+    mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false), mNumSubmapKFs(4)
 {
     mnCovisibilityConsistencyTh = 3;
     
@@ -257,7 +257,7 @@ bool LoopClosing::DetectLoop()
 
 bool LoopClosing::DetectLoopNDT()
 {
-
+    mvpSubMapKFs.clear();
     // Avoid that a keyframe can be erased while it is being process by this thread
     mpORBCheckedKF->SetNotErase();
 
@@ -286,8 +286,8 @@ bool LoopClosing::DetectLoopNDT()
     for ( int i = 0; i < keyframes.size(); i++ )
     {
         // Check accumulated distance between current keyframe and keyframe
-        float accumDistance = mpORBCheckedKF->GetAccumDistance() - keyframes[i]->GetAccumDistance();
-        if ( accumDistance < 10.0 )
+        float accumDistance = mpORBCheckedKF->GetAccumDistance() - keyframes[i]->GetAccumDistance(); 
+        if ( accumDistance < 10.0 ) // Accmulated moving distance[m] may be bigger than 10m.. 2.5 times of 4m(far distance threshold)
         {
             // ROS_INFO_STREAM("accumDistance() : " << accumDistance  );
             continue;
@@ -301,7 +301,7 @@ bool LoopClosing::DetectLoopNDT()
 
         // Get Cadidate keyframe's pose
         cv::Mat CadidateKFPose = keyframes[i]->GetPoseInverse();
-        if (mpORBCheckedKF->mnId < keyframes[i]->mnId + 25)
+        if (mpORBCheckedKF->mnId < keyframes[i]->mnId + 25) // this 25 is tested value
         {
             continue;
         }
@@ -340,8 +340,35 @@ bool LoopClosing::DetectLoopNDT()
     {
         mPairCandidateLoopPCD.first  = mpORBCheckedKF;
         mPairCandidateLoopPCD.second = mpMatchedKFPCD;
+        // Gather near keyframes of mpMatchedKFPCD
+
+                // Get possible front and back number of accessible keyframes.
+        int accessibleFront = minScoreIdx - mNumSubmapKFs;
+        int accessibleBack = minScoreIdx + mNumSubmapKFs;
+        minScoreIdx = mNumSubmapKFs; // normal state
+        if( accessibleFront < 0 ) // not enough front keyframes
+        {
+            minScoreIdx = mNumSubmapKFs + accessibleFront; 
+            accessibleFront = 0;
+        }
+        if( accessibleBack > keyframes.size() ) // not enough back keyframes
+        {
+            minScoreIdx = accessibleBack - mNumSubmapKFs; 
+            accessibleBack = keyframes.size();
+        }
+        ROS_INFO("keyframe size: %ld", keyframes.size());
+        ROS_INFO("accessibleFront Idx: %d", accessibleFront);
+        ROS_INFO("accessibleBack Idx: %d", accessibleBack);
+        ROS_INFO("Target Keyframe Idx: %d", minScoreIdx);
+        // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
+
+        for (int i = accessibleFront; i < accessibleBack; i++)
+        {        
+            mvpSubMapKFs.push_back(keyframes[i]);
+        }
+        
         // mLastLoopKFidPCD = mpCurrentKF->mnId; -> Update 후에 설정해야함
-        cout << "--- Keyframe view-point-based loop detected : " << mpMatchedKFPCD->mnId << endl;
+        cout << "--- Keyframe view-point-based loop detected Submap Size: " << mvpSubMapKFs.size() << endl;
         return true;
     }
     mpORBCheckedKF->SetErase();
@@ -423,7 +450,7 @@ bool LoopClosing::ComputeSim3()
             bool bNoMore;
 
             Sim3Solver* pSolver = vpSim3Solvers[i];
-            cv::Mat Scm  = pSolver->iterate(5,bNoMore,vbInliers,nInliers);
+            cv::Mat Scm  = pSolver->iterate(5,bNoMore,vbInliers,nInliers); // Sim m -> c (current) -> matched candidate keyframe (pKF) / 이 부분이 RANSAC을 수행하는 부분
 
             // If Ransac reachs max. iterations discard keyframe
             if(bNoMore)
@@ -443,11 +470,11 @@ bool LoopClosing::ComputeSim3()
                 }
 
 
-                // 이 
+                // 이 위의 부분을 Registration Matcing으로 바꾸기
                 cv::Mat R = pSolver->GetEstimatedRotation();
                 cv::Mat t = pSolver->GetEstimatedTranslation();
-                const float s = pSolver->GetEstimatedScale();
-                matcher.SearchBySim3(mpCurrentKF,pKF,vpMapPointMatches,s,R,t,7.5);
+                const float s = pSolver->GetEstimatedScale(); // mfixedScale이 true면 1.0
+                matcher.SearchBySim3(mpCurrentKF,pKF,vpMapPointMatches,s,R,t,7.5); // Sim3를 사용해서 매칭을 다시 수행함
 
                 g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
                 const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, pKF, vpMapPointMatches, gScm, 10, mbFixScale); // vpMapPointMatches가 비어있어도, 내부에서 새로운 매칭을 다시 찾는 시도를 함
@@ -475,8 +502,6 @@ bool LoopClosing::ComputeSim3()
         mpCurrentKF->SetErase();
         return false;
     }
-
-    // Sim3를
 
     // Retrieve MapPoints seen in Loop Keyframe and neighbors
     vector<KeyFrame*> vpLoopConnectedKFs = mpMatchedKF->GetVectorCovisibleKeyFrames(); // 매칭된 키프레임과 공변성 관계에 있는 키프레임들을 추출함
@@ -915,5 +940,23 @@ bool LoopClosing::isFinished()
     return mbFinished;
 }
 
+// Get the loop closure candidate pair.
+std::pair<KeyFrame*, KeyFrame*>  LoopClosing::GetLoopClosingPair()
+{
+    unique_lock<mutex> lock(mMutexLoopQueue);
+    return mPairCandidateLoopPCD;
+}
+// Get the point position loop closure candidate pair.
+std::pair<cv::Mat, cv::Mat> LoopClosing::GetLoopClosingPairPoint()
+{
+    unique_lock<mutex> lock(mMutexLoopQueue);
+    return mPairCandidateLoopPCDPoint;
+}
+
+std::vector<KeyFrame*> LoopClosing::GetSubmapKFs()
+{
+    unique_lock<mutex> lock(mMutexLoopQueue);
+    return mvpSubMapKFs;
+}
 
 } //namespace ORB_SLAM

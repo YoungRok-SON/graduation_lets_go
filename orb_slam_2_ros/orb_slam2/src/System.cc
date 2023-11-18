@@ -556,6 +556,11 @@ std::pair<cv::Mat, cv::Mat> System::GetLoopClosingPairPoint()
   return mpLoopCloser->GetLoopClosingPairPoint();
 }
 
+std::vector<KeyFrame*> System::GetSubmapKFs()
+{
+    return mpLoopCloser->GetSubmapKFs();
+}
+
 bool System::SetCallStackSize (const rlim_t kNewStackSize) {
     struct rlimit rlimit;
     int operation_result;

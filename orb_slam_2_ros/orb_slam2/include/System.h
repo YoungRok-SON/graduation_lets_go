@@ -152,6 +152,8 @@ public:
 
     std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint() ;
 
+    std::vector<KeyFrame*> GetSubmapKFs();
+
 
 private:
     bool SetCallStackSize (const rlim_t kNewStackSize);

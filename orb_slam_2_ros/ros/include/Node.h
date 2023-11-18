@@ -114,6 +114,7 @@ class Node
     ros::Publisher keyframe_pose_publisher_; // New Debuging Feature
     ros::Publisher loop_closing_pair_publisher_; // New Debuging Feature
     ros::Publisher loop_closing_pair_point_publisher_; // New Debuging Feature
+    ros::Publisher loop_Closing_submap_publisher_; // New Debuging Feature
 
     ros::ServiceServer service_server_;
 
