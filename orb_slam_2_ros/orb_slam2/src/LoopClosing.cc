@@ -363,7 +363,7 @@ bool LoopClosing::DetectLoopNDT()
         // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
 
         for (int i = accessibleFront; i < accessibleBack; i++)
-        {        
+        {
             mvpSubMapKFs.push_back(keyframes[i]);
         }
         
@@ -554,10 +554,16 @@ bool LoopClosing::ComputeSim3()
 
 }
 
+// Generate Sim3 from NDT registration result
 bool LoopClosing::ComputeSE3NDT()
 {
-
-    // Generate Sim3 from NDT registration result
+    /* Generate Submap from mvpSubMapKFs using relative pose among closest keyframe and near keyframes */
+    // Get relative pose among closest keyframe and near keyframes
+    std::vector<cv::Mat> relativePoses;
+    pcl::PointCloud<PointT>::Ptr submapCloud(new pcl::PointCloud<PointT>());
+    cv::Mat relPoseClosest2Current = mPairCandidateLoopPCD.first.inv() * mPairCandidateLoopPCDP.second->GetPose();
+    // Get relative pose between closest keyframe and current keyframe
+     
     
     return true;
 }

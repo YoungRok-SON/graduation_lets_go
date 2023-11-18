@@ -93,6 +93,8 @@ class Node
     void PublishLoopClosingPairMarker( const std::pair<ORB_SLAM2::KeyFrame*, ORB_SLAM2::KeyFrame*> keyframes);
     // Loop Closing 후보 키 프레임 벡터의 포인트를 받아 MarkerArray로 변환하여 퍼블리시하는 함수
     void PublishLoopClosingPairPointMarker( const std::pair<cv::Mat, cv::Mat> points);
+    // Get Submap from Loop Closing candiate
+    
     // initialization Transform listener
     boost::shared_ptr<tf2_ros::Buffer> tfBuffer;
     boost::shared_ptr<tf2_ros::TransformListener> tfListener;
@@ -103,6 +105,8 @@ class Node
     tf2::Transform TransformToTarget (tf2::Transform tf_in, std::string frame_in, std::string frame_target);
     // 맵 포인트를 포인트 클라우드로 변환하는 함수
     sensor_msgs::PointCloud2 MapPointsToPointCloud (std::vector<ORB_SLAM2::MapPoint*> map_points); 
+    // Submap 디버깅용 퍼블리쉬 함수
+
 
     // dynamic_reconfigure의 파라미터를 저장하는 변수
     dynamic_reconfigure::Server<orb_slam2_ros::dynamic_reconfigureConfig> dynamic_param_server_;

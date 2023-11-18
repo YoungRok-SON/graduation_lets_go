@@ -204,9 +204,16 @@ public:
 protected:
 
     // SE3 Pose and camera center
-    cv::Mat Tcw;
-    cv::Mat Twc;
+    cv::Mat Tcw; // 월드 좌표계(0,0,0) -> 월드 좌표계에서 본 카메라의 포즈(x,y,z) / rpy 생략
+    cv::Mat Twc; // 월드 좌표계에서 본 카메라의 포즈(x,y,z) -> 월드 좌표계의 원점(0,0,0)
     cv::Mat Ow;
+
+    /* 책에서 쓰는건 T_wc가 (카메라 좌표계에서 본) 월드 좌표계라는데  ORB_SLAM2에서는 (카메라 좌표계에서 본) 월드 좌표계고,
+
+    이걸 또 다른 말로 하면,
+
+    책에서는 T_wc는 카메라 좌표계(0,0,0)를 월드좌표계(x,y,z)로 옮기는 변환행렬 이라는데  ORB_SLAM2에서는 월드 프레임에서 본 카메라의 포즈(x,y,z)를 월드 좌표계에서 본 원점(0,0,0)으로 옮기는 변환 행렬로 정의
+     */
 
     cv::Mat Cw; // Stereo middel point. Only for visualization
 
