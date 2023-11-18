@@ -46,9 +46,11 @@ class LoopClosing
 public:
 
     typedef pair<set<KeyFrame*>,int> ConsistentGroup;    
-    typedef map<KeyFrame*,g2o::Sim3,std::less<KeyFrame*>,
-        Eigen::aligned_allocator<std::pair<KeyFrame* const, g2o::Sim3> > > KeyFrameAndPose;
-
+    typedef map< KeyFrame*, g2o::Sim3, std::less<KeyFrame*>, Eigen::aligned_allocator< std::pair<KeyFrame* const, g2o::Sim3> > > KeyFrameAndPose;
+    /* Eigen::aligned_allocator는 Eigen 라이브러리의 일부로서,
+       데이터가 메모리에 효율적이고 최적화된 방식으로 저장되도록 합니다.
+       이는 특히 SIMD(Single Instruction, Multiple Data) 최적화와 같은 고성능 계산에 중요합니다.
+    */
 public:
 
     LoopClosing(Map* pMap, KeyFrameDatabase* pDB, ORBVocabulary* pVoc,const bool bFixScale);
@@ -84,16 +86,16 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
     // Get the loop closure candidate pair.
-    std::vector<KeyFrame*> GetLoopClosingPair()
+    std::pair<KeyFrame*, KeyFrame*>  GetLoopClosingPair()
     {
         unique_lock<mutex> lock(mMutexLoopQueue);
-        return mCandidatePCDLoopPair;
+        return mPairCandidateLoopPCD;
     }
     // Get the point position loop closure candidate pair.
-    std::vector<cv::Mat> GetLoopClosingPairPoint()
+    std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint()
     {
         unique_lock<mutex> lock(mMutexLoopQueue);
-        return mCandidatePCDLoopPairPoint;
+        return mPairCandidateLoopPCDPoint;
     }
 
 protected:
@@ -138,8 +140,8 @@ protected:
 
     // New feature
     cv::Mat mlookAhead;
-    std::vector<KeyFrame*> mCandidatePCDLoopPair;
-    std::vector<cv::Mat> mCandidatePCDLoopPairPoint;
+    std::pair<KeyFrame*,KeyFrame*> mPairCandidateLoopPCD;
+    std::pair<cv::Mat,cv::Mat>     mPairCandidateLoopPCDPoint;
 
     // Loop detector parameters
     float mnCovisibilityConsistencyTh;

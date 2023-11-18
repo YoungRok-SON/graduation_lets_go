@@ -325,10 +325,10 @@ void Node::PublishKeyFramePose( const std::vector<ORB_SLAM2::KeyFrame*> keyframe
   keyframe_pose_publisher_.publish(marker_array);
 }
 
-void Node::PublishLoopClosingPairMarker( const std::vector<ORB_SLAM2::KeyFrame*> keyframes)
+void Node::PublishLoopClosingPairMarker( const std::pair<ORB_SLAM2::KeyFrame*, ORB_SLAM2::KeyFrame*> keyframes)
 {
 
-  if (keyframes.size() != 2)
+  if (keyframes.first == nullptr || keyframes.second == nullptr)
   {
     // ROS_WARN("Loop Closing Pair is not enough.");
     return;
@@ -338,14 +338,14 @@ void Node::PublishLoopClosingPairMarker( const std::vector<ORB_SLAM2::KeyFrame*>
   visualization_msgs::MarkerArray marker_array;
   visualization_msgs::Marker marker;
   marker.header.frame_id = "map";
-  marker.header.stamp = ros::Time( keyframes.front()->mTimeStamp );
+  marker.header.stamp = ros::Time( keyframes.first->mTimeStamp );
   marker.ns = "loop_closing_pair";
   marker.type = visualization_msgs::Marker::ARROW;
   marker.action = visualization_msgs::Marker::ADD;
   marker.lifetime = ros::Duration(0.0);
 
   // Get the keyframe pose
-  cv::Mat position = keyframes.front()->GetPose();
+  cv::Mat position = keyframes.first->GetPose();
   // Get the position and orientation of the transform
   tf2::Transform tf_position = TransformFromMat(position);
   tf2::Vector3 position_vec = tf_position.getOrigin();
@@ -370,7 +370,7 @@ void Node::PublishLoopClosingPairMarker( const std::vector<ORB_SLAM2::KeyFrame*>
   first_arrow.color.a = 1.0;
 
   // Generate the second arrow
-  position = keyframes.back()->GetPose();
+  position = keyframes.second->GetPose();
   // Get the position and orientation of the transform
   tf_position = TransformFromMat(position);
   position_vec = tf_position.getOrigin();
@@ -402,10 +402,10 @@ void Node::PublishLoopClosingPairMarker( const std::vector<ORB_SLAM2::KeyFrame*>
   loop_closing_pair_publisher_.publish(marker_array);
 }
 
-void Node::PublishLoopClosingPairPointMarker(std::vector<cv::Mat> points)
+void Node::PublishLoopClosingPairPointMarker(std::pair<cv::Mat, cv::Mat> points)
 {
   
-  if (points.size() != 2)
+  if (points.first.empty() || points.second.empty())
   {
     // ROS_WARN("Loop Closing Pair is not enough.");
     return;
@@ -423,7 +423,7 @@ void Node::PublishLoopClosingPairPointMarker(std::vector<cv::Mat> points)
   marker.lifetime = ros::Duration(0.0);
 
   // Get the keyframe pose
-  cv::Mat position = points.front();
+  cv::Mat position = points.first;
   // Get the position and orientation of the transform
   tf2::Transform tf_position = TransformFromMat(position);
   tf2::Vector3 position_vec = tf_position.getOrigin();
@@ -450,7 +450,7 @@ void Node::PublishLoopClosingPairPointMarker(std::vector<cv::Mat> points)
 
   // Generate the second arrow
   // Get the keyframe pose
-  position = points.back();
+  position = points.second;
   // Get the position and orientation of the transform
   tf_position = TransformFromMat(position);
   position_vec = tf_position.getOrigin();

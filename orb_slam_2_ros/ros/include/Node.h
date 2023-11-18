@@ -90,9 +90,9 @@ class Node
     // New feature - Publish KeyFrame pose
     void PublishKeyFramePose ( const std::vector<ORB_SLAM2::KeyFrame*> keyframes);
     // Loop Closing 후보 키 프레임 벡터를 받아 MarkerArray로 변환하여 퍼블리시하는 함수
-    void PublishLoopClosingPairMarker( const std::vector<ORB_SLAM2::KeyFrame*> keyframes);
+    void PublishLoopClosingPairMarker( const std::pair<ORB_SLAM2::KeyFrame*, ORB_SLAM2::KeyFrame*> keyframes);
     // Loop Closing 후보 키 프레임 벡터의 포인트를 받아 MarkerArray로 변환하여 퍼블리시하는 함수
-    void PublishLoopClosingPairPointMarker( const std::vector<cv::Mat> points);
+    void PublishLoopClosingPairPointMarker( const std::pair<cv::Mat, cv::Mat> points);
     // initialization Transform listener
     boost::shared_ptr<tf2_ros::Buffer> tfBuffer;
     boost::shared_ptr<tf2_ros::TransformListener> tfListener;

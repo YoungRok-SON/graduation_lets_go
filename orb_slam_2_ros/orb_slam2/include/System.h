@@ -148,9 +148,9 @@ public:
     std::vector<KeyFrame*> GetAllKeyFrames();
 
     // Get Loop Closing Pair
-    std::vector<KeyFrame*> GetLoopClosingPair();
+    std::pair<KeyFrame*, KeyFrame*> GetLoopClosingPair();
 
-    std::vector<cv::Mat> GetLoopClosingPairPoint() ;
+    std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint() ;
 
 
 private:

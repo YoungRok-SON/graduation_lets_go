@@ -45,6 +45,9 @@ LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, 
     // Set lookahead position
     mlookAhead = cv::Mat::eye(4,4,CV_32F);
     mlookAhead.at<float>(2,3) = (0.1+4) * 0.5; // near distance threshold = 0.1m, far distance threshold = 4m
+
+    mPairCandidateLoopPCD.first = static_cast<KeyFrame*>(nullptr);
+    mPairCandidateLoopPCD.second = static_cast<KeyFrame*>(nullptr);
     
 }
 
@@ -269,7 +272,10 @@ bool LoopClosing::DetectLoopNDT()
     // Compare Look ahead distance between current KF and last loop KF
     // If the distance is less than 1m, return true
     // Look ahead distance is mean value of distance between near distance and far distance threshold
-    mCandidatePCDLoopPair.clear();
+    mPairCandidateLoopPCD.first       = static_cast<KeyFrame*>(nullptr);
+    mPairCandidateLoopPCD.second      = static_cast<KeyFrame*>(nullptr);
+    mPairCandidateLoopPCDPoint.first  = cv::Mat();
+    mPairCandidateLoopPCDPoint.second = cv::Mat();
     // mpMap에 접근해서 모든 키프레임 가져오기
     std::vector<KeyFrame*> keyframes = mpMap->GetAllKeyFrames();
     double minScore = 1.0;
@@ -312,9 +318,9 @@ bool LoopClosing::DetectLoopNDT()
         {
             // check the smallest keyframe
             minScore = distance;
-            mCandidatePCDLoopPairPoint.clear();
-            mCandidatePCDLoopPairPoint.push_back(lookaheadPoseSource);
-            mCandidatePCDLoopPairPoint.push_back(lookaheadPoseTarget);
+            // save the lookahead pose of candidate keyframe
+            mPairCandidateLoopPCDPoint.first  = lookaheadPoseSource;
+            mPairCandidateLoopPCDPoint.second = lookaheadPoseTarget;
 
             // set this keyframe not to erased
             keyframes[i]->SetNotErase();
@@ -332,8 +338,8 @@ bool LoopClosing::DetectLoopNDT()
     // if minsScore is not changed, return false
     if(minScoreIdx != -1)
     {
-        mCandidatePCDLoopPair.push_back(mpORBCheckedKF);
-        mCandidatePCDLoopPair.push_back(mpMatchedKFPCD);
+        mPairCandidateLoopPCD.first  = mpORBCheckedKF;
+        mPairCandidateLoopPCD.second = mpMatchedKFPCD;
         // mLastLoopKFidPCD = mpCurrentKF->mnId; -> Update 후에 설정해야함
         cout << "--- Keyframe view-point-based loop detected : " << mpMatchedKFPCD->mnId << endl;
         return true;
@@ -379,7 +385,7 @@ bool LoopClosing::ComputeSim3()
             continue;
         }
 
-        int nmatches = matcher.SearchByBoW(mpCurrentKF,pKF,vvpMapPointMatches[i]); // 현재 키프레임과 후보 키프레임 사이의 맵 포인트를 매칭함
+        int nmatches = matcher.SearchByBoW(mpCurrentKF,pKF,vvpMapPointMatches[i]); // 현재 키프레임과 후보 키프레임 사이의 맵 포인트를 매칭함 (BoW 매칭 사용)
         // vvpMapPointMatches는 후보자와 매칭이 된 삼차원 상의 맵 포인트를 의미
 
         if(nmatches<20) // 개수가 적으면 버림
@@ -404,7 +410,7 @@ bool LoopClosing::ComputeSim3()
     // until one is succesful or all fail
     while(nCandidates>0 && !bMatch)
     {
-        for(int i=0; i<nInitialCandidates; i++)
+        for(int i=0; i<nInitialCandidates; i++) // 후보자만큼 
         {
             if(vbDiscarded[i])
                 continue;
@@ -436,13 +442,15 @@ bool LoopClosing::ComputeSim3()
                        vpMapPointMatches[j]=vvpMapPointMatches[i][j];
                 }
 
+
+                // 이 
                 cv::Mat R = pSolver->GetEstimatedRotation();
                 cv::Mat t = pSolver->GetEstimatedTranslation();
                 const float s = pSolver->GetEstimatedScale();
                 matcher.SearchBySim3(mpCurrentKF,pKF,vpMapPointMatches,s,R,t,7.5);
 
                 g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
-                const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, pKF, vpMapPointMatches, gScm, 10, mbFixScale);
+                const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, pKF, vpMapPointMatches, gScm, 10, mbFixScale); // vpMapPointMatches가 비어있어도, 내부에서 새로운 매칭을 다시 찾는 시도를 함
 
                 // If optimization is succesful stop ransacs and continue
                 if(nInliers>=20)
@@ -453,7 +461,7 @@ bool LoopClosing::ComputeSim3()
                     mg2oScw = gScm*gSmw;  // World -> matched candiate keyframe (pKF) -> current keyframe / 그리고 gScm는 최적화된 값이 들어감
                     mScw = Converter::toCvMat(mg2oScw);
 
-                    mvpCurrentMatchedPoints = vpMapPointMatches;
+                    mvpCurrentMatchedPoints = vpMapPointMatches; // NDT로 SE3를 찾아도 이 부분을 설정해줘야 다음 과정을 진행할 수 있음
                     break;
                 }
             }
@@ -467,6 +475,8 @@ bool LoopClosing::ComputeSim3()
         mpCurrentKF->SetErase();
         return false;
     }
+
+    // Sim3를
 
     // Retrieve MapPoints seen in Loop Keyframe and neighbors
     vector<KeyFrame*> vpLoopConnectedKFs = mpMatchedKF->GetVectorCovisibleKeyFrames(); // 매칭된 키프레임과 공변성 관계에 있는 키프레임들을 추출함
@@ -489,6 +499,7 @@ bool LoopClosing::ComputeSim3()
             }
         }
     }
+    /* 이 과정을 NDT로 수정하고, mScw를 구한 다음에  나머지 과정은 그대로 똑같이 수행할 수 있는지?*/
 
     // Find more matches projecting with the computed Sim3
     matcher.SearchByProjection(mpCurrentKF, mScw, mvpLoopMapPoints, mvpCurrentMatchedPoints,10);
@@ -520,6 +531,9 @@ bool LoopClosing::ComputeSim3()
 
 bool LoopClosing::ComputeSE3NDT()
 {
+
+    // Generate Sim3 from NDT registration result
+    
     return true;
 }
 
@@ -567,21 +581,22 @@ void LoopClosing::CorrectLoop()
     {
         // Get Map Mutex
         unique_lock<mutex> lock(mpMap->mMutexMapUpdate);
-
-        for(vector<KeyFrame*>::iterator vit=mvpCurrentConnectedKFs.begin(), vend=mvpCurrentConnectedKFs.end(); vit!=vend; vit++) // 현재 키프레임과 연결된 키프레임들을 순회
+        
+        // 현재 키프레임과 연결된 키프레임들을 순회
+        for(vector<KeyFrame*>::iterator vit=mvpCurrentConnectedKFs.begin(), vend=mvpCurrentConnectedKFs.end(); vit!=vend; vit++) 
         {
             KeyFrame* pKFi = *vit;
 
             cv::Mat Tiw = pKFi->GetPose();
 
-            if(pKFi!=mpCurrentKF)
+            if(pKFi!=mpCurrentKF) // 현재꺼만 빼고, 
             {
                 cv::Mat Tic = Tiw*Twc; //  여기서 i는 이웃 키프레임을 의미함 (current keyframe과 연결된 키프레임) / Tic는 current keyframe을 기준으로 이웃 키프레임의 위치를 의미함
                 cv::Mat Ric = Tic.rowRange(0,3).colRange(0,3);
                 cv::Mat tic = Tic.rowRange(0,3).col(3);
                 g2o::Sim3 g2oSic(Converter::toMatrix3d(Ric),Converter::toVector3d(tic),1.0);
-                g2o::Sim3 g2oCorrectedSiw = g2oSic*mg2oScw;
-                //Pose corrected with the Sim3 of the loop closure
+                g2o::Sim3 g2oCorrectedSiw = g2oSic*mg2oScw; // world -> 최적회된 sim3 pose * 현재 키 프레임 -> 이웃 키 프레임 : 결국 sim3 사용해서 다른 키프레임 포즈 변경
+                // Pose corrected with the Sim3 of the loop closure
                 CorrectedSim3[pKFi]=g2oCorrectedSiw;
             }
 
@@ -589,11 +604,12 @@ void LoopClosing::CorrectLoop()
             cv::Mat tiw = Tiw.rowRange(0,3).col(3);
             g2o::Sim3 g2oSiw(Converter::toMatrix3d(Riw),Converter::toVector3d(tiw),1.0);
             //Pose without correction
-            NonCorrectedSim3[pKFi]=g2oSiw;
+            NonCorrectedSim3[pKFi]=g2oSiw; // 변경 되지 않은 애들도 저장
         }
 
+        // 현재 키 프레임과 연결된 이웃 키 프레임들에 의해 관측된 맵 포인트를 순회하며 위치를 수정
         // Correct all MapPoints obsrved by current keyframe and neighbors, so that they align with the other side of the loop
-        for(KeyFrameAndPose::iterator mit=CorrectedSim3.begin(), mend=CorrectedSim3.end(); mit!=mend; mit++)
+        for(KeyFrameAndPose::iterator mit=CorrectedSim3.begin(), mend=CorrectedSim3.end(); mit!=mend; mit++) // correctSim3는 std::Map<KeyFrame, g2o::Sim3> 형태로 되어있음
         {
             KeyFrame* pKFi = mit->first;
             g2o::Sim3 g2oCorrectedSiw = mit->second;
@@ -602,7 +618,7 @@ void LoopClosing::CorrectLoop()
             g2o::Sim3 g2oSiw = NonCorrectedSim3[pKFi];
 
             // Covisible Landmark들의 위치를 보정 (이웃 키프레임들의 위치를 보정함)
-            vector<MapPoint*> vpMPsi = pKFi->GetMapPointMatches();
+            vector<MapPoint*> vpMPsi = pKFi->GetMapPointMatches(); // 이웃 키프레임들의 맵 포인트들을 추출함 / 좌표계는 이웃 키프레임의 좌표계
             for(size_t iMP=0, endMPi = vpMPsi.size(); iMP<endMPi; iMP++)
             {
                 MapPoint* pMPi = vpMPsi[iMP];
@@ -616,10 +632,11 @@ void LoopClosing::CorrectLoop()
                 // Project with non-corrected pose and project back with corrected pose
                 cv::Mat P3Dw = pMPi->GetWorldPos();
                 Eigen::Matrix<double,3,1> eigP3Dw = Converter::toVector3d(P3Dw);
-                Eigen::Matrix<double,3,1> eigCorrectedP3Dw = g2oCorrectedSwi.map(g2oSiw.map(eigP3Dw));
+                Eigen::Matrix<double,3,1> eigCorrectedP3Dw = g2oCorrectedSwi.map(g2oSiw.map(eigP3Dw)); // map()는 맵포인트의 월드 좌표계 위치(eigP3Dw)를 키프레임 좌표계로 변환
+                // 결국 월드 좌표계(보정 전) -> 키프레임 좌표계(보정전) -> 월드 좌표계(보정후)로 변환하는 것임
 
                 cv::Mat cvCorrectedP3Dw = Converter::toCvMat(eigCorrectedP3Dw);
-                pMPi->SetWorldPos(cvCorrectedP3Dw);
+                pMPi->SetWorldPos(cvCorrectedP3Dw); // 위치를 저장
                 pMPi->mnCorrectedByKF = mpCurrentKF->mnId;
                 pMPi->mnCorrectedReference = pKFi->mnId;
                 pMPi->UpdateNormalAndDepth();

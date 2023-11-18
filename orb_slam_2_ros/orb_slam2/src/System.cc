@@ -545,13 +545,13 @@ std::vector<KeyFrame*> System::GetAllKeyFrames()
   return mpMap->GetAllKeyFrames();
 }
 // Get Loop Closing Pair
-std::vector<KeyFrame*> System::GetLoopClosingPair() 
+std::pair<KeyFrame*, KeyFrame*> System::GetLoopClosingPair() 
 {
   return mpLoopCloser->GetLoopClosingPair();
 }
 
 // Get Loop Closing Pair Point
-std::vector<cv::Mat> System::GetLoopClosingPairPoint() 
+std::pair<cv::Mat, cv::Mat> System::GetLoopClosingPairPoint() 
 {
   return mpLoopCloser->GetLoopClosingPairPoint();
 }
