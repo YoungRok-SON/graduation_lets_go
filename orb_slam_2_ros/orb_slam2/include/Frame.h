@@ -48,7 +48,7 @@ namespace ORB_SLAM2
 
 class MapPoint;
 class KeyFrame;
-typedef pcl::PointXYZRGB PointT;
+typedef pcl::PointXYZI PointT;
 
 class Frame
 {

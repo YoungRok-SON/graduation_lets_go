@@ -51,7 +51,7 @@
 
 #include "System.h"
 
-typedef pcl::PointXYZRGB PointT;
+typedef pcl::PointXYZI PointT;
 
 class Node
 {

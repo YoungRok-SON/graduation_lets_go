@@ -81,8 +81,6 @@ void RGBDNode::ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const se
     ROS_ERROR(" PCL Pointcloud expection: %s", e.what());
   }
   
-  
-
   current_frame_time_ = msgRGB->header.stamp;
 
   // Pass the image to the SLAM system to track the camera pose.

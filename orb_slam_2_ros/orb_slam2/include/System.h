@@ -50,7 +50,7 @@ struct ORBParameters;
 class System
 {
 
-typedef pcl::PointXYZRGB PointT;
+typedef pcl::PointXYZI PointT;
 
 public:
     // Input sensor

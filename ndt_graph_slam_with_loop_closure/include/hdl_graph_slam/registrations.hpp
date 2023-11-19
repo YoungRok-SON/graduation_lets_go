@@ -9,6 +9,8 @@
 
 namespace hdl_graph_slam {
 
+pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>::Ptr resgistrationNDTOMP();
+
 /**
  * @brief select a scan matching algorithm according to rosparams
  * @param pnh

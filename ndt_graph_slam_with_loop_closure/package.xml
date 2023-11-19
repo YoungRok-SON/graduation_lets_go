@@ -36,5 +36,7 @@
 
   <export>
     <nodelet plugin="${prefix}/nodelet_plugins.xml" />
+    <build_type>catkin</build_type>
   </export>
+  
 </package>

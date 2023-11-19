@@ -28,7 +28,7 @@ tf2_ros
 sensor_msgs
 dynamic_reconfigure
 message_generation
-pcl_ros 
+pcl_ros  
 )
 
 find_package(OpenCV 4.0 QUIET)
@@ -89,6 +89,7 @@ ${PROJECT_SOURCE_DIR}/orb_slam2/include
 ${PROJECT_SOURCE_DIR}/ros/include
 ${EIGEN3_INCLUDE_DIR}
 ${catkin_INCLUDE_DIRS}
+${PROJECT_SOURCE_DIR}/../ndt_graph_slam_with_loop_closure/include
 )
 
 include(${PROJECT_SOURCE_DIR}/orb_slam2/Thirdparty/DBoW2/CMakeLists.txt)
@@ -115,10 +116,12 @@ orb_slam2/src/KeyFrameDatabase.cc
 orb_slam2/src/Sim3Solver.cc
 orb_slam2/src/Initializer.cc
 )
-add_dependencies (${PROJECT_NAME} g2o DBoW2)
+add_dependencies (${PROJECT_NAME} g2o DBoW2 ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}
-${LIBS_ORBSLAM}
+${LIBS_ORBSLAM} 
+hdl_graph_slam_nodelet
+${catkin_LIBRARIES}
 )
 
 # map serialization addition - library boost serialization 
@@ -127,36 +130,40 @@ find_library(BOOST_SERIALIZATION boost_serialization)
 if (NOT BOOST_SERIALIZATION)
     message(FATAL_ERROR "Can't find libboost_serialization")
 endif()
-target_link_libraries(${PROJECT_NAME} ${BOOST_SERIALIZATION})
+target_link_libraries(${PROJECT_NAME} ${BOOST_SERIALIZATION} ${catkin_LIBRARIES})
 
 add_executable (${PROJECT_NAME}_mono
 ros/src/MonoNode.cc
 ros/src/Node.cc
 )
-add_dependencies (${PROJECT_NAME}_mono ${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
+add_dependencies (${PROJECT_NAME}_mono ${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}_mono
 ${LIBS_ROS}
+${catkin_LIBRARIES}
 )
 
 add_executable (${PROJECT_NAME}_stereo
 ros/src/StereoNode.cc
 ros/src/Node.cc
 )
-add_dependencies (${PROJECT_NAME}_stereo ${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
+add_dependencies (${PROJECT_NAME}_stereo ${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}_stereo
 ${LIBS_ROS}
+${catkin_LIBRARIES}
 )
 
 add_executable (${PROJECT_NAME}_rgbd
 ros/src/RGBDNode.cc
 ros/src/Node.cc
 )
-add_dependencies (${PROJECT_NAME}_rgbd ${PROJECT_NAME} ${PROJECT_NAME}_gencfg)
+add_dependencies (${PROJECT_NAME}_rgbd ${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}_rgbd
 ${LIBS_ROS}
+${catkin_LIBRARIES}
+hdl_graph_slam_nodelet
 )
 
 install(TARGETS ${PROJECT_NAME}_mono ${PROJECT_NAME}_stereo ${PROJECT_NAME}_rgbd

@@ -43,7 +43,7 @@ class Map;
 class MapPoint;
 class Frame;
 class KeyFrameDatabase;
-typedef pcl::PointXYZRGB PointCloudT;
+typedef pcl::PointXYZI PointT;
 
 class KeyFrame
 {
@@ -62,7 +62,7 @@ public:
     // New feature
     float   GetAccumDistance();
     void    SetAccumDistance(float lastKeyFrameAccumDistance, cv::Mat Tcw);
-    pcl::PointCloud<PointCloudT>::Ptr GetPointCloud();
+    pcl::PointCloud<PointT>::Ptr GetPointCloud();
 
 
     // Bag of Words Representation
@@ -254,7 +254,7 @@ protected:
     std::mutex mMutexFeatures;
 
     // New Feature
-    pcl::PointCloud<PointCloudT>::Ptr mPointCloud;
+    pcl::PointCloud<PointT>::Ptr mPointCloud;
 
 // map serialization addition
 public:
