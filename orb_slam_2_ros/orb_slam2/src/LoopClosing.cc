@@ -589,7 +589,7 @@ bool LoopClosing::ComputeSim3NDT()
         }
     }
 
-    // Voxel filter using octree!
+    // Voxel filter using octree! -> 어차피 NDT 복셀화 할건데 이거 필요한가?
     submapCloud->width = submapCloud->size();
     submapCloud->height = 1;
     submapCloud->is_dense = false;
@@ -606,7 +606,7 @@ bool LoopClosing::ComputeSim3NDT()
     filtered->is_dense = false;
     
     // Now time to do registration ~
-    
+
 
 
 
