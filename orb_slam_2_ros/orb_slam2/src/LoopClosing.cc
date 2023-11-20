@@ -34,13 +34,15 @@
 
 #include <pcl/octree/octree_search.h>
 
+#include <chrono>
+
 
 namespace ORB_SLAM2
 {
 
 LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale):
     mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
-    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
+    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mpMatchedKFPCD(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
     mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false), mNumSubmapKFs(4), mSubmapVoxleSize(0.05)
 {
     mnCovisibilityConsistencyTh = 3;
@@ -52,7 +54,7 @@ LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, 
     mPairCandidateLoopPCD.first = static_cast<KeyFrame*>(nullptr);
     mPairCandidateLoopPCD.second = static_cast<KeyFrame*>(nullptr);
 
-    mpRegistration = hdl_graph_slam::resgistrationNDTOMP();
+    mpRegistration = resgistrationNDTOMP();
     
 }
 
@@ -77,18 +79,18 @@ void LoopClosing::Run()
         if(CheckNewKeyFrames())
         {
             // Detect loop candidates and check covisibility consistency
-            if(DetectLoop())
-            {
-               // Compute similarity transformation [sR|t]
-               // In the stereo/RGBD case s=1
-               if(ComputeSim3())
-               {
-                   // Perform loop fusion and pose graph optimization
-                   CorrectLoop();
-               }
-            }
+            // if(DetectLoop())
+            // {
+            //    // Compute similarity transformation [sR|t]
+            //    // In the stereo/RGBD case s=1
+            //    if(ComputeSim3())
+            //    {
+            //        // Perform loop fusion and pose graph optimization
+            //        CorrectLoop();
+            //    }
+            // }
             // Detect loop candidates and check covisibility consistency
-            else if(DetectLoopNDT())
+            if(DetectLoopNDT())
             {
                // Compute similarity transformation [sR|t]
                // In the stereo/RGBD case s=1
@@ -261,10 +263,20 @@ bool LoopClosing::DetectLoop()
 
 bool LoopClosing::DetectLoopNDT()
 {
+    // Time consuming check
+    auto start = std::chrono::high_resolution_clock::now();
+
     mvpSubMapKFs.clear();
     // Avoid that a keyframe can be erased while it is being process by this thread
-    mpCurrentKF->SetNotErase();
+    // mpCurrentKF->SetNotErase();
 
+    {// 키 프레임 추출 및 대기열 관리
+        unique_lock<mutex> lock(mMutexLoopQueue);
+        mpCurrentKF = mlpLoopKeyFrameQueue.front();
+        mlpLoopKeyFrameQueue.pop_front();
+        // Avoid that a keyframe can be erased while it is being process by this thread
+        mpCurrentKF->SetNotErase();
+    }
 
     //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
     if(mpCurrentKF->mnId < mLastLoopKFid+30)
@@ -282,7 +294,7 @@ bool LoopClosing::DetectLoopNDT()
     mPairCandidateLoopPCDPoint.second = cv::Mat();
     // mpMap에 접근해서 모든 키프레임 가져오기
     std::vector<KeyFrame*> keyframes = mpMap->GetAllKeyFrames();
-    double minScore = 1.0;
+    double minScore = 2.0;
     int minScoreIdx = -1;
     // Get current keyframe's pose
     cv::Mat currentKFPose =  mpCurrentKF->GetPoseInverse() ;
@@ -329,17 +341,17 @@ bool LoopClosing::DetectLoopNDT()
             // set previous smallest distance keyframe to erased
             if ( minScoreIdx != -1 )
             {
-                // release previous candidate should be before saving minscoreIdx
-                keyframes[minScoreIdx]->SetNotErase(); 
                 // set this keyframe not to erased
                 keyframes[minScoreIdx]->SetErase();
             }
             // Save loop closing candiate keyframe
             mpMatchedKFPCD = keyframes[i];
+            mpMatchedKFPCD->SetNotErase();
             // save previous smallest distance keyframe index 
             minScoreIdx = i;
         }
     }
+
     // if minsScore is not changed, return false
     if(minScoreIdx != -1)
     {
@@ -369,9 +381,16 @@ bool LoopClosing::DetectLoopNDT()
         }
         
         cout << "--- Keyframe view-point-based loop detected Submap Size: " << mvpSubMapKFs.size() << " ---" << endl;
+        // Time consuming check
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        std::cout << "NDT Detection Durtaion: " << elapsed.count() << std::endl;
+    
         return true;
     }
+
     mpCurrentKF->SetErase();
+    // mpMatchedKFPCD->SetErase(); // mutex problem have occured -> 아마 초기에 후보자가 없는 상태에서 지우려고 해서 그런듯 -> 해결됨
     return false;
 }
 
@@ -557,11 +576,14 @@ bool LoopClosing::ComputeSim3()
 // Generate Sim3 from NDT registration result
 bool LoopClosing::ComputeSim3NDT()
 {
+    // Time consuming check
+    auto start = std::chrono::high_resolution_clock::now();
+        
 
     mpCurrentKF->SetNotErase();
     mpMatchedKFPCD->SetNotErase();
     
-    /* Generate Submap from mvpSubMapKFs using relative pose among closest keyframe and near keyframes */
+    // Generate Submap from mvpSubMapKFs using relative pose among closest keyframe and near keyframes
     
     // Get relative pose between closest keyframe and current keyframe
     cv::Mat Tst = mpCurrentKF->GetPose() * mpMatchedKFPCD->GetPoseInverse(); // target(candiate keyframe:Tcw) -> source(current keyframe:Twc)
@@ -569,7 +591,7 @@ bool LoopClosing::ComputeSim3NDT()
     Tst_eigen = Converter::toMatrix4f(Tst);
     
     // Generate submap pointcloud 
-    pcl::PointCloud<PointT>::Ptr submapCloud(new pcl::PointCloud<PointT>());
+    pcl::PointCloud<pcl::PointXYZI>::Ptr submapCloud(new pcl::PointCloud<pcl::PointXYZI>());
     submapCloud->reserve(mpMatchedKFPCD->GetPointCloud()->size() * mvpSubMapKFs.size());
     Eigen::Matrix4f Tnt_eigen = Eigen::Matrix4f::Identity();
 
@@ -581,59 +603,76 @@ bool LoopClosing::ComputeSim3NDT()
 
         for (const auto& point : candiKF->GetPointCloud()->points)
         {
-            PointT destPoint;
+            pcl::PointXYZI destPoint;
             destPoint.getVector4fMap() = Tnt_eigen * point.getVector4fMap();
             submapCloud->push_back(destPoint);
+            // destPoint.intensity = 0.0;
         }
     }
+
 
     // Voxel filter using octree! -> 어차피 NDT 복셀화 할건데 이거 필요한가?
     submapCloud->width = submapCloud->size();
     submapCloud->height = 1;
     submapCloud->is_dense = false;
     
-/*     pcl::octree::OctreePointCloud<PointT> octree(mSubmapVoxleSize);
-    octree.setInputCloud(submapCloud);
-    octree.addPointsFromInputCloud();
+    // pcl::octree::OctreePointCloud<PointT> octree(mSubmapVoxleSize);
+    // octree.setInputCloud(submapCloud);
+    // octree.addPointsFromInputCloud();
 
-    pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>());
-    octree.getOccupiedVoxelCenters(filtered->points);
+    // pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>());
+    // octree.getOccupiedVoxelCenters(filtered->points);
 
-    filtered->width = filtered->size();
-    filtered->height = 1;
-    filtered->is_dense = false; */
+    // filtered->width = filtered->size();
+    // filtered->height = 1;
+    // filtered->is_dense = false;
     
     // Now time to do registration ~
 
-    pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
+    pcl::PointCloud<pcl::PointXYZI>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZI>());
+    pcl::PointCloud<pcl::PointXYZI>::Ptr sourceCloud(new pcl::PointCloud<pcl::PointXYZI>());
+    for (const auto& point : mpCurrentKF->GetPointCloud()->points)
+    {
+        pcl::PointXYZI destPoint;
+        destPoint.getVector4fMap() = point.getVector4fMap();
+        // destPoint.intensity = 0.0;
+        sourceCloud->push_back(destPoint);
+    }
+
     mpRegistration->setInputTarget(submapCloud);
-    mpRegistration->setInputSource(mpCurrentKF->GetPointCloud());
+    mpRegistration->setInputSource(sourceCloud);
     mpRegistration->align(*aligned, Tst_eigen);
     
     // Get Matching Score
     float score = mpRegistration->getFitnessScore();
     if ( !mpRegistration->hasConverged() || score > 0.3 ) // 0.3 is tested value
     {
+        cout << "NDT Registration Failed! Score: " << score << endl;
         return false;
     }
+    cout << "NDT Registration done sucessfully Score: " << score << endl;
     
     // Get Transformation Matrix
     Eigen::Matrix4f Tsc_eigen = mpRegistration->getFinalTransformation(); // candiate keyframe -> estimated current keyframe
+    // Eigen::Matrix4f Tts_eigen = mpRegistration->getFinalTransformation().inverse(); // source to target(current to matched)
     // registration을 CandiKF의 카메라 좌표계가 기준되도록 서브맵을 구성하고 있었고, 소스의 시작 위치가 동일하게 여기서 시작
     // Guess값을 통해 currentKF와 CandiKF 사이의 상대 변환을 하여 원래 상대위치로 움직임
     // getFianlTransformation()의 리턴값은 Guess값을 포함한 Source to Target이니 결국 원점이 같은 경우
     // CandiKF -> Estimated CurrentKF로의 변환을 의미함
     // Sim3 또한 CandiKF -> Estimated CurrentKF로의 변환을 의미함
+    // 위 tf는 상대 변환을 구한건데 Tsc의 경우 CandiKF -> CurrentKF로의 변환을 의미함
+    // Tts는 Tsc의 인버스.. 즉 CurrentKF -> CandiKF로의 상대 변환 의미
 
     // Generate Sim3
     cv::Mat Tsc = Converter::toCvMat(Tsc_eigen);
     cv::Mat R = Tsc.rowRange(0,3).colRange(0,3);
     cv::Mat t = Tsc.rowRange(0,3).col(3);
     const float s = 1.0f; // mfixedScale이 true면 1.0
-    vector<MapPoint*> vpMapPointMatches;
+    vector<MapPoint*> vpMapPointMatches(mpCurrentKF->GetMapPointMatches().size(), static_cast<MapPoint*>(NULL));
     
     ORBmatcher matcher(0.75,true); // 
-    matcher.SearchBySim3(mpCurrentKF,mpMatchedKFPCD,vpMapPointMatches,s,R,t,7.5); // Sim3를 사용해서 매칭을 다시 수행함
+    matcher.SearchBySim3(mpCurrentKF,mpMatchedKFPCD,vpMapPointMatches,s,R,t,7.5); // Sim3를 사용해서 매칭을 수행함
+    // 여기서 뭔가 고쳐줘야 할 것 같은데
 
     g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
     const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, mpMatchedKFPCD, vpMapPointMatches, gScm, 10, mbFixScale); // vpMapPointMatches가 비어있어도, 내부에서 새로운 매칭을 다시 찾는 시도를 함
@@ -646,16 +685,17 @@ bool LoopClosing::ComputeSim3NDT()
         mg2oScw = gScm*gSmw;  // World -> matched candiate keyframe (pKF) -> current keyframe / 그리고 gScm는 최적화된 값이 들어감
         mScw = Converter::toCvMat(mg2oScw);
 
-        mvpCurrentMatchedPoints = vpMapPointMatches; // NDT로 SE3를 찾아도 이 부분을 설정해줘야 다음 과정을 진행할 수 있음
+        mvpCurrentMatchedPoints = vpMapPointMatches; // NDT로 SE3를 찾아도 이 부분을 설정해줘야 다음 과정을 진행할 수 있음        
     }
     else
     {
+        cout << "Comptuing Sim3 Failed! Nubmer of Inliers are too few. : " << nInliers << endl;
         mpCurrentKF->SetErase();
         mpMatchedKFPCD->SetErase();
         return false;
     }
     
-    /* Same Processing with ComputeSim3() */
+    // Same Processing with ComputeSim3()
 
     // Retrieve MapPoints seen in Loop Keyframe and neighbors
     vector<KeyFrame*> vpLoopConnectedKFs = mpMatchedKFPCD->GetVectorCovisibleKeyFrames(); // 매칭된 키프레임과 공변성 관계에 있는 키프레임들을 추출함
@@ -692,10 +732,22 @@ bool LoopClosing::ComputeSim3NDT()
 
     if(nTotalMatches>=40)
     {
+        cout << "Total Matched Points: " << nTotalMatches << endl;
         return true;
+        
+        // Time consuming check
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        std::cout << "NDT Sim3 computing Durtaion: " << elapsed.count() << std::endl;
     }
     else
     {
+        cout << "Matching has failed! Total Matched Points: " << nTotalMatches << endl;
+        // Time consuming check
+        auto finish = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = finish - start;
+        std::cout << "NDT Sim3 computing Durtaion: " << elapsed.count() << std::endl;
+        
         mpCurrentKF->SetErase();
         mpMatchedKFPCD->SetErase();
         return false;
@@ -707,6 +759,8 @@ bool LoopClosing::ComputeSim3NDT()
 void LoopClosing::CorrectLoop()
 {
     cout << "Loop detected!" << endl;
+
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Send a stop signal to Local Mapping
     // Avoid new keyframes are inserted while correcting the loop
@@ -842,7 +896,7 @@ void LoopClosing::CorrectLoop()
                 }
             }
         }
-
+        cout << " Update keyframes and map points." << endl;
     }
 
     // Project MapPoints observed in the neighborhood of the loop keyframe
@@ -871,7 +925,7 @@ void LoopClosing::CorrectLoop()
             LoopConnections[pKFi].erase(*vit2);
         }
     }
-
+    cout << "Starting optimization..." << endl;
     // Optimize graph
     Optimizer::OptimizeEssentialGraph(mpMap, mpMatchedKF, mpCurrentKF, NonCorrectedSim3, CorrectedSim3, LoopConnections, mbFixScale);
 
@@ -880,6 +934,8 @@ void LoopClosing::CorrectLoop()
     // Add loop edge
     mpMatchedKF->AddLoopEdge(mpCurrentKF);
     mpCurrentKF->AddLoopEdge(mpMatchedKF);
+
+    cout << "Loop Closed!" << endl;
 
     // Launch a new thread to perform Global Bundle Adjustment
     mbRunningGBA  = true;
@@ -891,6 +947,8 @@ void LoopClosing::CorrectLoop()
     mpLocalMapper->Release();
 
     mLastLoopKFid = mpCurrentKF->mnId;
+
+    cout  << " " << endl << endl << endl << endl;
 }
 
 void LoopClosing::SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap)

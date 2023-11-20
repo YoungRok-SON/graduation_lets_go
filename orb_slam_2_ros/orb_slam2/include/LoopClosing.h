@@ -33,8 +33,7 @@
 #include <mutex>
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
 
-#include "hdl_graph_slam/registrations.hpp"
-
+#include "registrations.hpp"
 
 namespace ORB_SLAM2
 {
@@ -144,15 +143,13 @@ protected:
     int                            mNumSubmapKFs;
     float                          mSubmapVoxleSize;
 
-    pcl::Registration<PointT, PointT>::Ptr mpRegistration;
+    pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>::Ptr mpRegistration;
     
-
     // Loop detector parameters
     float mnCovisibilityConsistencyTh;
 
     // Loop detector variables
     KeyFrame* mpCurrentKF;
-    KeyFrame* mpORBCheckedKF;
     KeyFrame* mpMatchedKF;
     KeyFrame* mpMatchedKFPCD;
     std::vector<ConsistentGroup> mvConsistentGroups;

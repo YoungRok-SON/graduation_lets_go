@@ -43,7 +43,7 @@ class Map;
 class MapPoint;
 class Frame;
 class KeyFrameDatabase;
-typedef pcl::PointXYZI PointT;
+typedef pcl::PointXYZRGB PointT;
 
 class KeyFrame
 {

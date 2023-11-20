@@ -29,6 +29,8 @@ sensor_msgs
 dynamic_reconfigure
 message_generation
 pcl_ros  
+ndt_omp
+fast_gicp
 )
 
 find_package(OpenCV 4.0 QUIET)
@@ -43,6 +45,21 @@ if(NOT OpenCV_FOUND)
 endif()
 
 find_package(Eigen3 3.1.0 REQUIRED)
+
+find_package(PCL REQUIRED)
+include_directories(${PCL_INCLUDE_DIRS})
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+message(STATUS "PCL_INCLUDE_DIRS:" ${PCL_INCLUDE_DIRS})
+message(STATUS "PCL_LIBRARY_DIRS:" ${PCL_LIBRARY_DIRS})
+message(STATUS "PCL_DEFINITIONS:" ${PCL_DEFINITIONS})
+
+
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
 
 set (DYNAMIC_RECONFIGURE_PATH ros/config/dynamic_reconfigure.cfg)
 execute_process(COMMAND chmod a+x ${DYNAMIC_RECONFIGURE_PATH}
@@ -90,6 +107,7 @@ ${PROJECT_SOURCE_DIR}/ros/include
 ${EIGEN3_INCLUDE_DIR}
 ${catkin_INCLUDE_DIRS}
 ${PROJECT_SOURCE_DIR}/../ndt_graph_slam_with_loop_closure/include
+${PCL_LIBRARY_DIRS}
 )
 
 include(${PROJECT_SOURCE_DIR}/orb_slam2/Thirdparty/DBoW2/CMakeLists.txt)
@@ -115,13 +133,15 @@ orb_slam2/src/Frame.cc
 orb_slam2/src/KeyFrameDatabase.cc
 orb_slam2/src/Sim3Solver.cc
 orb_slam2/src/Initializer.cc
+orb_slam2/src/registrations.cpp
+# registration 관련 추가 필요
 )
 add_dependencies (${PROJECT_NAME} g2o DBoW2 ${catkin_EXPORTED_TARGETS})
 
 target_link_libraries(${PROJECT_NAME}
 ${LIBS_ORBSLAM} 
-hdl_graph_slam_nodelet
 ${catkin_LIBRARIES}
+${PCL_LIBRARIES}
 )
 
 # map serialization addition - library boost serialization 
@@ -130,7 +150,8 @@ find_library(BOOST_SERIALIZATION boost_serialization)
 if (NOT BOOST_SERIALIZATION)
     message(FATAL_ERROR "Can't find libboost_serialization")
 endif()
-target_link_libraries(${PROJECT_NAME} ${BOOST_SERIALIZATION} ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${BOOST_SERIALIZATION} ${catkin_LIBRARIES}   ${PCL_LIBRARIES}
+)
 
 add_executable (${PROJECT_NAME}_mono
 ros/src/MonoNode.cc
@@ -163,7 +184,7 @@ add_dependencies (${PROJECT_NAME}_rgbd ${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${
 target_link_libraries(${PROJECT_NAME}_rgbd
 ${LIBS_ROS}
 ${catkin_LIBRARIES}
-hdl_graph_slam_nodelet
+${PCL_LIBRARIES}
 )
 
 install(TARGETS ${PROJECT_NAME}_mono ${PROJECT_NAME}_stereo ${PROJECT_NAME}_rgbd

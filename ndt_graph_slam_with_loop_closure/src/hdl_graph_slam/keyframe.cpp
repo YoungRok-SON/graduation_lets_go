@@ -10,7 +10,7 @@
 
 namespace hdl_graph_slam
 {
-  typedef pcl::PointXYZI PointT;
+  typedef pcl::PointXYZRGB PointT;
 
 
   KeyFrame::KeyFrame( const ros::Time &stamp, const Eigen::Isometry3d &odom, 

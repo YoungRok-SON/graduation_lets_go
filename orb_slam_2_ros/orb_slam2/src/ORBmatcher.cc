@@ -1303,6 +1303,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
             vnMatch2[i2]=bestIdx;
         }
     }
+    
 
     // Check agreement
     int nFound = 0;

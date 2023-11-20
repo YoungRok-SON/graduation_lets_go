@@ -424,22 +424,21 @@ void Node::PublishLoopClosingPairPointMarker(std::pair<cv::Mat, cv::Mat> points)
 
   // Get the keyframe pose
   cv::Mat position = points.first;
-  // Get the position and orientation of the transform
-  tf2::Transform tf_position = TransformFromMat(position);
-  tf2::Vector3 position_vec = tf_position.getOrigin();
-  tf2::Quaternion orientation_quat = tf_position.getRotation();
+  // tf2::Transform orb2rviz = TransformFromMat(position);
+  // tf2::Quaternion orientation_quat = orb2rviz.getRotation();
 
+  // tf2::Vector3 position_vec = orb2rviz.getOrigin();
   // Generate the first arrow
   visualization_msgs::Marker source_point = marker;
   source_point.id = 0;
   // cast to float
-  source_point.pose.position.x    =  position.at<float>(2,3);
-  source_point.pose.position.y    = -position.at<float>(0,3);
-  source_point.pose.position.z    = -position.at<float>(1,3);
-  source_point.pose.orientation.x = orientation_quat.x();
-  source_point.pose.orientation.y = orientation_quat.y();
-  source_point.pose.orientation.z = orientation_quat.z();
-  source_point.pose.orientation.w = orientation_quat.w();
+  source_point.pose.position.x    = position.at<float> (2, 3);
+  source_point.pose.position.y    = -position.at<float>(0, 3);
+  source_point.pose.position.z    = -position.at<float>(1, 3);
+  source_point.pose.orientation.x = 0.0;
+  source_point.pose.orientation.y = 0.0;
+  source_point.pose.orientation.z = 0.0;
+  source_point.pose.orientation.w = 1.0;
   source_point.scale.x = 1.0;
   source_point.scale.y = 1.0;
   source_point.scale.z = 1.0;
@@ -451,22 +450,21 @@ void Node::PublishLoopClosingPairPointMarker(std::pair<cv::Mat, cv::Mat> points)
   // Generate the second arrow
   // Get the keyframe pose
   position = points.second;
-  // Get the position and orientation of the transform
-  tf_position = TransformFromMat(position);
-  position_vec = tf_position.getOrigin();
-  orientation_quat = tf_position.getRotation();
+  // orb2rviz = TransformFromMat(position);
+  // position_vec = orb2rviz.getOrigin();
+  // orientation_quat = orb2rviz.getRotation();
 
 
   // Generate the sencond arrow
   visualization_msgs::Marker target_point = marker;
   target_point.id = 1;
-  target_point.pose.position.x    =  position.at<float>(2,3);
-  target_point.pose.position.y    = -position.at<float>(0,3);
-  target_point.pose.position.z    = -position.at<float>(1,3);
-  target_point.pose.orientation.x = orientation_quat.x();
-  target_point.pose.orientation.y = orientation_quat.y();
-  target_point.pose.orientation.z = orientation_quat.z();
-  target_point.pose.orientation.w = orientation_quat.w();
+  target_point.pose.position.x    = position.at<float> (2, 3);
+  target_point.pose.position.y    = -position.at<float>(0, 3);
+  target_point.pose.position.z    = -position.at<float>(1, 3);
+  target_point.pose.orientation.x = 0.0;
+  target_point.pose.orientation.y = 0.0;
+  target_point.pose.orientation.z = 0.0;
+  target_point.pose.orientation.w = 1.0;
   target_point.scale.x = 1.0;
   target_point.scale.y = 1.0;
   target_point.scale.z = 1.0;

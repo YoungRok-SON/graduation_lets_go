@@ -65,8 +65,11 @@
 
 
   <!-- rosbag -->
-  <node name="rosbag_player" pkg="rosbag" type="play" args="-q /home/acdlsim/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag">
-    <param name="clock" value="true" />
+    <node name="rosbag_player" pkg="rosbag" type="play" 
+        args="-q /home/acdlsim/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag --clock ">
   </node>
+  <!-- <node name="rosbag_player" pkg="rosbag" type="play" 
+        args="-q /home/acdlsim/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag clock -r 0.4 -s 5.0">
+  </node> -->
 
 </launch>
