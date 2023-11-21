@@ -676,6 +676,7 @@ bool LoopClosing::ComputeSim3NDT()
 
     g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
     const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, mpMatchedKFPCD, vpMapPointMatches, gScm, 10, mbFixScale); // vpMapPointMatches가 비어있어도, 내부에서 새로운 매칭을 다시 찾는 시도를 함
+    cout << "Number of Inliers : " << nInliers << endl;
     
     // Check wether optimization is succesful by number of Inliers(matched points)
     if(nInliers>=20)
@@ -733,12 +734,13 @@ bool LoopClosing::ComputeSim3NDT()
     if(nTotalMatches>=40)
     {
         cout << "Total Matched Points: " << nTotalMatches << endl;
-        return true;
         
         // Time consuming check
         auto finish = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsed = finish - start;
         std::cout << "NDT Sim3 computing Durtaion: " << elapsed.count() << std::endl;
+        
+        return true;
     }
     else
     {

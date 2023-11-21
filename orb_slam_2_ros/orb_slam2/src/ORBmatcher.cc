@@ -311,7 +311,7 @@ int ORBmatcher::SearchByProjection(KeyFrame* pKF, cv::Mat Scw, const vector<MapP
     // For each Candidate MapPoint Project and Match
     for(int iMP=0, iendMP=vpPoints.size(); iMP<iendMP; iMP++)
     {
-        MapPoint* pMP = vpPoints[iMP];
+        MapPoint* pMP = vpPoints[iMP]; // 매칭된 키프레임과 공변성 관계에 있는 키 프레임의 맵 포인트들
 
         // Discard Bad MapPoints and already found
         if(pMP->isBad() || spAlreadyFound.count(pMP))
@@ -382,7 +382,7 @@ int ORBmatcher::SearchByProjection(KeyFrame* pKF, cv::Mat Scw, const vector<MapP
 
             const cv::Mat &dKF = pKF->mDescriptors.row(idx);
 
-            const int dist = DescriptorDistance(dMP,dKF);
+            const int dist = DescriptorDistance(dMP,dKF); // 이부분.. 어떻게 바꾸지
 
             if(dist<bestDist)
             {
