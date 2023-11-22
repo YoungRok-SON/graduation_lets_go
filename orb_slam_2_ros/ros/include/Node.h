@@ -27,6 +27,7 @@
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
+#include <pcl_conversions/pcl_conversions.h>
 
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/transform_listener.h>
@@ -48,8 +49,10 @@
 #include <std_msgs/Bool.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
+#include "keyframe_msgs/keyframe.h"
 
 #include "System.h"
+
 
 typedef pcl::PointXYZRGB PointT;
 
@@ -89,6 +92,8 @@ class Node
     void LoadOrbParameters (ORB_SLAM2::ORBParameters& parameters); 
     // New feature - Publish KeyFrame pose
     void PublishKeyFramePose ( const std::vector<ORB_SLAM2::KeyFrame*> keyframes);
+    // Keyframe data Publisher to Global Pose Graph Manager
+    void PublishKeyFrameData ( );
 
     
     // initialization Transform listener
@@ -111,7 +116,8 @@ class Node
     ros::Publisher map_points_publisher_;
     ros::Publisher pose_publisher_;
     ros::Publisher status_gba_publisher_;
-    ros::Publisher keyframe_pose_publisher_; // New Debuging Feature
+    ros::Publisher all_keyframe_pose_publisher_; // New Debuging Feature
+    ros::Publisher Keyframe_publisher_; // New Debuging Feature
 
     ros::ServiceServer service_server_;
 
@@ -134,5 +140,7 @@ class Node
     // This doesn't influence the behavior of the SLAM itself at all.
     int min_observations_per_point_;
 };
+
+
 
 #endif //ORBSLAM2_ROS_NODE_H_

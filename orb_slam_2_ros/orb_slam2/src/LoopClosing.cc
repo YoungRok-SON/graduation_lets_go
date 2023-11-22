@@ -97,13 +97,31 @@ void LoopClosing::InsertKeyFrame(KeyFrame *pKF)
     unique_lock<mutex> lock(mMutexLoopQueue);
     if(pKF->mnId!=0)
         mlpLoopKeyFrameQueue.push_back(pKF);
+    
+    // For Global Pose Graph Optimization
+    mlpGPOKeyFrameQueue.push_back(pKF);
 }
+
 
 bool LoopClosing::CheckNewKeyFrames()
 {
     unique_lock<mutex> lock(mMutexLoopQueue);
     return(!mlpLoopKeyFrameQueue.empty());
 }
+
+bool LoopClosing::CheckNewGPOKeyFrames()
+{
+    unique_lock<mutex> lock(mMutexLoopQueue);
+    return(!mlpGPOKeyFrameQueue.empty());
+}
+
+KeyFrame* LoopClosing::GetGPOKeyFrames()
+{
+    unique_lock<mutex> lock(mMutexLoopQueue);
+    mlpGPOKeyFrameQueue.pop_front();
+}
+
+
 
 bool LoopClosing::DetectLoop()
 {

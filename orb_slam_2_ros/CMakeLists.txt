@@ -29,6 +29,7 @@ sensor_msgs
 dynamic_reconfigure
 message_generation
 pcl_ros  
+pcl_conversions
 )
 
 find_package(OpenCV 4.2 QUIET)
@@ -94,7 +95,7 @@ generate_messages(
 )
 
 catkin_package (
-  CATKIN_DEPENDS roscpp rospy std_msgs cv_bridge image_transport tf sensor_msgs dynamic_reconfigure message_runtime
+  CATKIN_DEPENDS roscpp rospy std_msgs cv_bridge image_transport tf sensor_msgs dynamic_reconfigure message_runtime keyframe_msgs
   LIBRARIES {PROJECT_NAME} libDBoW2 libg2o
 )
 
@@ -105,6 +106,7 @@ ${PROJECT_SOURCE_DIR}/ros/include
 ${EIGEN3_INCLUDE_DIR}
 ${catkin_INCLUDE_DIRS}
 ${PCL_LIBRARY_DIRS}
+# ${PROJECT_SOURCE_DIR}/../keyframe_msgs/include
 )
 
 include(${PROJECT_SOURCE_DIR}/orb_slam2/Thirdparty/DBoW2/CMakeLists.txt)

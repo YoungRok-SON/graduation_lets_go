@@ -69,8 +69,9 @@ void Node::Init () {
     pose_publisher_ = node_handle_.advertise<geometry_msgs::PoseStamped> (name_of_node_+"/pose", 1);
   }
 
-  status_gba_publisher_ = node_handle_.advertise<std_msgs::Bool> (name_of_node_+"/gba_running", 1);
-  keyframe_pose_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/keyframe_pose", 1);
+  status_gba_publisher_        = node_handle_.advertise<std_msgs::Bool> (name_of_node_+"/gba_running", 1);
+  all_keyframe_pose_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/keyframe_pose", 1);
+  Keyframe_publisher_          = node_handle_.advertise<keyframe_msgs::keyframe> (name_of_node_+"/keyframe", 1);
  
 }
 
@@ -102,9 +103,15 @@ void Node::Update ()
   PublishGBAStatus (orb_slam_->isRunningGBA());
 
   // Publish KeyFrame pose
-  if ( keyframe_pose_publisher_.getNumSubscribers() > 0 )
+  if ( all_keyframe_pose_publisher_.getNumSubscribers() > 0 )
   {
     PublishKeyFramePose( orb_slam_->GetAllKeyFrames() );
+  }
+  
+  // Publish KeyFrame data to Global Pose Graph Manager
+  if ( Keyframe_publisher_.getNumSubscribers() > 0 )
+  {
+    PublishKeyFrameData();
   }
 
 }
@@ -113,6 +120,43 @@ void Node::Update ()
 void Node::PublishMapPoints (std::vector<ORB_SLAM2::MapPoint*> map_points) {
   sensor_msgs::PointCloud2 cloud = MapPointsToPointCloud (map_points);
   map_points_publisher_.publish (cloud);
+}
+
+void Node::PublishKeyFrameData()
+{
+  // Get Keyframe if loop closure get a optimized pose.
+  ORB_SLAM2::KeyFrame* pKF = orb_slam_->GetOptimizedKeyFrame();
+  if ( pKF )
+  {
+    keyframe_msgs::keyframe kf_msg;
+    // Convert pose to std_msgs::Pose
+     cv::Mat poseKF = pKF->GetPose();
+
+    // Convert the pose to a transform
+    tf2::Transform pose_orb_to_map = TransformFromMat(poseKF);
+
+    // Get the position and orientation of the transform
+    tf2::Vector3 position_vec = pose_orb_to_map.getOrigin();
+    tf2::Quaternion orientation_quat = pose_orb_to_map.getRotation();
+
+    kf_msg.header.stamp = ros::Time( pKF->mTimeStamp );
+    kf_msg.header.frame_id = map_frame_id_param_;
+    kf_msg.vehicle_id = 1;
+    kf_msg.id = pKF->mnId;
+    kf_msg.Pose.position.x = position_vec.x();
+    kf_msg.Pose.position.y = position_vec.y();
+    kf_msg.Pose.position.z = position_vec.z();
+    kf_msg.Pose.orientation.x = orientation_quat.x();
+    kf_msg.Pose.orientation.y = orientation_quat.y();
+    kf_msg.Pose.orientation.z = orientation_quat.z();
+    kf_msg.Pose.orientation.w = orientation_quat.w();
+
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    cloud = pKF->GetPointCloud();
+    pcl::toROSMsg(*cloud, kf_msg.PointCloud);
+
+    Keyframe_publisher_.publish(kf_msg);
+  }
 }
 
 tf2::Transform Node::TransformToTarget (tf2::Transform tf_in, std::string frame_in, std::string frame_target) {
@@ -315,7 +359,7 @@ void Node::PublishKeyFramePose( const std::vector<ORB_SLAM2::KeyFrame*> keyframe
   }
 
   // Publish the marker array
-  keyframe_pose_publisher_.publish(marker_array);
+  all_keyframe_pose_publisher_.publish(marker_array);
 }
 
 tf2::Transform Node::TransformFromMat (cv::Mat position_mat) {

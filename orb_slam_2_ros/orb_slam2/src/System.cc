@@ -545,6 +545,21 @@ std::vector<KeyFrame*> System::GetAllKeyFrames()
   return mpMap->GetAllKeyFrames();
 }
 
+// Get a locally optimized keyframe pose from loop closure class
+KeyFrame* System::GetOptimizedKeyFrame()
+{
+    // check if there is new keyframe
+    if( mpLoopCloser->CheckNewGPOKeyFrames() )
+    {
+        // get optimized keyframe
+        return mpLoopCloser->GetGPOKeyFrames();
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 
 bool System::SetCallStackSize (const rlim_t kNewStackSize) {
     struct rlimit rlimit;

@@ -82,12 +82,16 @@ public:
 
     bool isFinished();
 
+    bool CheckNewGPOKeyFrames();
+
+    KeyFrame* GetGPOKeyFrames();
     
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 protected:
 
     bool CheckNewKeyFrames();
+
 
     bool DetectLoop();
     
@@ -116,6 +120,7 @@ protected:
     LocalMapping *mpLocalMapper;
 
     std::list<KeyFrame*> mlpLoopKeyFrameQueue;
+    std::list<KeyFrame*> mlpGPOKeyFrameQueue; // for Global pose optimization in other node.
 
     std::mutex mMutexLoopQueue;
     

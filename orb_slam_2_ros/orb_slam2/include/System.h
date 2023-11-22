@@ -147,12 +147,8 @@ public:
     // Get a all keyframe pose from Map class
     std::vector<KeyFrame*> GetAllKeyFrames();
 
-    // Get Loop Closing Pair
-    std::pair<KeyFrame*, KeyFrame*> GetLoopClosingPair();
-
-    std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint() ;
-
-    std::vector<KeyFrame*> GetSubmapKFs();
+    // Get a locally optimized keyframe pose from loop closure class
+    KeyFrame* GetOptimizedKeyFrame();
 
 
 private:
