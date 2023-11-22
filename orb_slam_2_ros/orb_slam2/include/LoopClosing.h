@@ -33,8 +33,6 @@
 #include <mutex>
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
 
-#include "registrations.hpp"
-
 namespace ORB_SLAM2
 {
 
@@ -85,14 +83,6 @@ public:
     bool isFinished();
 
     
-    // Get the loop closure candidate pair.
-    std::pair<KeyFrame*, KeyFrame*>  GetLoopClosingPair();
-
-    // Get the point position loop closure candidate pair.
-    std::pair<cv::Mat, cv::Mat> GetLoopClosingPairPoint();
-
-    std::vector<KeyFrame*> GetSubmapKFs();
-    
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 protected:
@@ -101,13 +91,7 @@ protected:
 
     bool DetectLoop();
     
-    // New Feature for Loop Closure detection using NDT.
-    bool DetectLoopNDT();
-
     bool ComputeSim3();
-    
-    // New Feature for Compute Sim3 using NDT registration result.
-    bool ComputeSim3NDT();
 
     void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap);
 
@@ -134,16 +118,6 @@ protected:
     std::list<KeyFrame*> mlpLoopKeyFrameQueue;
 
     std::mutex mMutexLoopQueue;
-
-    // New feature
-    cv::Mat mlookAhead;
-    std::pair<KeyFrame*,KeyFrame*> mPairCandidateLoopPCD;
-    std::pair<cv::Mat,cv::Mat>     mPairCandidateLoopPCDPoint;
-    std::vector<KeyFrame*>         mvpSubMapKFs;
-    int                            mNumSubmapKFs;
-    float                          mSubmapVoxleSize;
-
-    pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>::Ptr mpRegistration;
     
     // Loop detector parameters
     float mnCovisibilityConsistencyTh;
@@ -151,7 +125,6 @@ protected:
     // Loop detector variables
     KeyFrame* mpCurrentKF;
     KeyFrame* mpMatchedKF;
-    KeyFrame* mpMatchedKFPCD;
     std::vector<ConsistentGroup> mvConsistentGroups;
     std::vector<KeyFrame*> mvpEnoughConsistentCandidates;
     std::vector<KeyFrame*> mvpCurrentConnectedKFs;
@@ -161,7 +134,6 @@ protected:
     g2o::Sim3 mg2oScw;
 
     long unsigned int mLastLoopKFid;
-    long unsigned int mLastLoopKFidPCD;
 
     // Variables related to Global Bundle Adjustment
     bool mbRunningGBA;

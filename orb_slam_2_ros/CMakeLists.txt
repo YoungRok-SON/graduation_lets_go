@@ -29,11 +29,9 @@ sensor_msgs
 dynamic_reconfigure
 message_generation
 pcl_ros  
-ndt_omp
-fast_gicp
 )
 
-find_package(OpenCV 4.0 QUIET)
+find_package(OpenCV 4.2 QUIET)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 3.0 QUIET)
    if(NOT OpenCV_FOUND)
@@ -106,7 +104,6 @@ ${PROJECT_SOURCE_DIR}/orb_slam2/include
 ${PROJECT_SOURCE_DIR}/ros/include
 ${EIGEN3_INCLUDE_DIR}
 ${catkin_INCLUDE_DIRS}
-${PROJECT_SOURCE_DIR}/../ndt_graph_slam_with_loop_closure/include
 ${PCL_LIBRARY_DIRS}
 )
 
@@ -133,8 +130,6 @@ orb_slam2/src/Frame.cc
 orb_slam2/src/KeyFrameDatabase.cc
 orb_slam2/src/Sim3Solver.cc
 orb_slam2/src/Initializer.cc
-orb_slam2/src/registrations.cpp
-# registration 관련 추가 필요
 )
 add_dependencies (${PROJECT_NAME} g2o DBoW2 ${catkin_EXPORTED_TARGETS})
 

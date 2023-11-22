@@ -71,8 +71,7 @@ void Node::Init () {
 
   status_gba_publisher_ = node_handle_.advertise<std_msgs::Bool> (name_of_node_+"/gba_running", 1);
   keyframe_pose_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/keyframe_pose", 1);
-  loop_closing_pair_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/loop_closing_pair", 1);
-  loop_closing_pair_point_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/loop_closing_pair_point", 1);
+ 
 }
 
 // Node update and publish
@@ -106,12 +105,6 @@ void Node::Update ()
   if ( keyframe_pose_publisher_.getNumSubscribers() > 0 )
   {
     PublishKeyFramePose( orb_slam_->GetAllKeyFrames() );
-  }
-
-  if ( loop_closing_pair_publisher_.getNumSubscribers() > 0 )
-  {
-    PublishLoopClosingPairMarker( orb_slam_->GetLoopClosingPair() );
-    PublishLoopClosingPairPointMarker(orb_slam_->GetLoopClosingPairPoint());
   }
 
 }
@@ -324,163 +317,6 @@ void Node::PublishKeyFramePose( const std::vector<ORB_SLAM2::KeyFrame*> keyframe
   // Publish the marker array
   keyframe_pose_publisher_.publish(marker_array);
 }
-
-void Node::PublishLoopClosingPairMarker( const std::pair<ORB_SLAM2::KeyFrame*, ORB_SLAM2::KeyFrame*> keyframes)
-{
-
-  if (keyframes.first == nullptr || keyframes.second == nullptr)
-  {
-    // ROS_WARN("Loop Closing Pair is not enough.");
-    return;
-  }  
-
-  // Generate 2 arrow for each pose
-  visualization_msgs::MarkerArray marker_array;
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = "map";
-  marker.header.stamp = ros::Time( keyframes.first->mTimeStamp );
-  marker.ns = "loop_closing_pair";
-  marker.type = visualization_msgs::Marker::ARROW;
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.lifetime = ros::Duration(0.0);
-
-  // Get the keyframe pose
-  cv::Mat position = keyframes.first->GetPose();
-  // Get the position and orientation of the transform
-  tf2::Transform tf_position = TransformFromMat(position);
-  tf2::Vector3 position_vec = tf_position.getOrigin();
-  tf2::Quaternion orientation_quat = tf_position.getRotation();
-
-  // Generate the first arrow
-  visualization_msgs::Marker first_arrow = marker;
-  first_arrow.id = 0;
-  first_arrow.pose.position.x = position_vec.x();
-  first_arrow.pose.position.y = position_vec.y();
-  first_arrow.pose.position.z = position_vec.z();
-  first_arrow.pose.orientation.x = orientation_quat.x();
-  first_arrow.pose.orientation.y = orientation_quat.y();
-  first_arrow.pose.orientation.z = orientation_quat.z();
-  first_arrow.pose.orientation.w = orientation_quat.w();
-  first_arrow.scale.x = 0.3;
-  first_arrow.scale.y = 0.05;
-  first_arrow.scale.z = 0.05;
-  first_arrow.color.r = 0.5;
-  first_arrow.color.g = 0.5;
-  first_arrow.color.b = 0.0;
-  first_arrow.color.a = 1.0;
-
-  // Generate the second arrow
-  position = keyframes.second->GetPose();
-  // Get the position and orientation of the transform
-  tf_position = TransformFromMat(position);
-  position_vec = tf_position.getOrigin();
-  orientation_quat = tf_position.getRotation();
-
-  // Generate the sencond arrow
-  visualization_msgs::Marker second_arrow = marker;
-  second_arrow.id = 1;
-  second_arrow.pose.position.x = position_vec.x();
-  second_arrow.pose.position.y = position_vec.y();
-  second_arrow.pose.position.z = position_vec.z();
-  second_arrow.pose.orientation.x = orientation_quat.x();
-  second_arrow.pose.orientation.y = orientation_quat.y();
-  second_arrow.pose.orientation.z = orientation_quat.z();
-  second_arrow.pose.orientation.w = orientation_quat.w();
-  second_arrow.scale.x = 0.3;
-  second_arrow.scale.y = 0.05;
-  second_arrow.scale.z = 0.05;
-  second_arrow.color.r = 0.0;
-  second_arrow.color.g = 0.5;
-  second_arrow.color.b = 0.5;
-  second_arrow.color.a = 1.0;
-
-  // Add the arrows to the marker array
-  marker_array.markers.push_back(first_arrow);
-  marker_array.markers.push_back(second_arrow);
-
-  // Publish the marker array
-  loop_closing_pair_publisher_.publish(marker_array);
-}
-
-void Node::PublishLoopClosingPairPointMarker(std::pair<cv::Mat, cv::Mat> points)
-{
-  
-  if (points.first.empty() || points.second.empty())
-  {
-    // ROS_WARN("Loop Closing Pair is not enough.");
-    return;
-  }  
-
-  // Generate 2 arrow for each pose
-  visualization_msgs::MarkerArray marker_array;
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = map_frame_id_param_;
-  marker.header.stamp = ros::Time::now();
-  marker.ns = "loop_closing_pair_point";
-  // sphere marker
-  marker.type = visualization_msgs::Marker::SPHERE; ;
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.lifetime = ros::Duration(0.0);
-
-  // Get the keyframe pose
-  cv::Mat position = points.first;
-  // tf2::Transform orb2rviz = TransformFromMat(position);
-  // tf2::Quaternion orientation_quat = orb2rviz.getRotation();
-
-  // tf2::Vector3 position_vec = orb2rviz.getOrigin();
-  // Generate the first arrow
-  visualization_msgs::Marker source_point = marker;
-  source_point.id = 0;
-  // cast to float
-  source_point.pose.position.x    = position.at<float> (2, 3);
-  source_point.pose.position.y    = -position.at<float>(0, 3);
-  source_point.pose.position.z    = -position.at<float>(1, 3);
-  source_point.pose.orientation.x = 0.0;
-  source_point.pose.orientation.y = 0.0;
-  source_point.pose.orientation.z = 0.0;
-  source_point.pose.orientation.w = 1.0;
-  source_point.scale.x = 1.0;
-  source_point.scale.y = 1.0;
-  source_point.scale.z = 1.0;
-  source_point.color.r = 0.5;
-  source_point.color.g = 0.5;
-  source_point.color.b = 0.0;
-  source_point.color.a = 1.0;
-
-  // Generate the second arrow
-  // Get the keyframe pose
-  position = points.second;
-  // orb2rviz = TransformFromMat(position);
-  // position_vec = orb2rviz.getOrigin();
-  // orientation_quat = orb2rviz.getRotation();
-
-
-  // Generate the sencond arrow
-  visualization_msgs::Marker target_point = marker;
-  target_point.id = 1;
-  target_point.pose.position.x    = position.at<float> (2, 3);
-  target_point.pose.position.y    = -position.at<float>(0, 3);
-  target_point.pose.position.z    = -position.at<float>(1, 3);
-  target_point.pose.orientation.x = 0.0;
-  target_point.pose.orientation.y = 0.0;
-  target_point.pose.orientation.z = 0.0;
-  target_point.pose.orientation.w = 1.0;
-  target_point.scale.x = 1.0;
-  target_point.scale.y = 1.0;
-  target_point.scale.z = 1.0;
-  target_point.color.r = 0.0;
-  target_point.color.g = 0.5;
-  target_point.color.b = 0.5;
-  target_point.color.a = 1.0;
-
-  // Add the arrows to the marker array
-  marker_array.markers.push_back(source_point);
-  marker_array.markers.push_back(target_point);
-
-  // Publish the marker array
-  loop_closing_pair_point_publisher_.publish(marker_array);
-}
-
 
 tf2::Transform Node::TransformFromMat (cv::Mat position_mat) {
   cv::Mat rotation(3,3,CV_32F);

@@ -544,22 +544,7 @@ std::vector<KeyFrame*> System::GetAllKeyFrames()
 {
   return mpMap->GetAllKeyFrames();
 }
-// Get Loop Closing Pair
-std::pair<KeyFrame*, KeyFrame*> System::GetLoopClosingPair() 
-{
-  return mpLoopCloser->GetLoopClosingPair();
-}
 
-// Get Loop Closing Pair Point
-std::pair<cv::Mat, cv::Mat> System::GetLoopClosingPairPoint() 
-{
-  return mpLoopCloser->GetLoopClosingPairPoint();
-}
-
-std::vector<KeyFrame*> System::GetSubmapKFs()
-{
-    return mpLoopCloser->GetSubmapKFs();
-}
 
 bool System::SetCallStackSize (const rlim_t kNewStackSize) {
     struct rlimit rlimit;

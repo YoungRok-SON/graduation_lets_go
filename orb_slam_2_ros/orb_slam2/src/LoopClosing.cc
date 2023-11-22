@@ -42,20 +42,10 @@ namespace ORB_SLAM2
 
 LoopClosing::LoopClosing(Map *pMap, KeyFrameDatabase *pDB, ORBVocabulary *pVoc, const bool bFixScale):
     mbResetRequested(false), mbFinishRequested(false), mbFinished(true), mpMap(pMap),
-    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mpMatchedKFPCD(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
-    mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false), mNumSubmapKFs(4), mSubmapVoxleSize(0.05)
+    mpKeyFrameDB(pDB), mpORBVocabulary(pVoc), mpMatchedKF(NULL), mLastLoopKFid(0), mbRunningGBA(false), mbFinishedGBA(true),
+    mbStopGBA(false), mpThreadGBA(NULL), mbFixScale(bFixScale), mnFullBAIdx(false)
 {
-    mnCovisibilityConsistencyTh = 3;
-    
-    // Set lookahead position
-    mlookAhead = cv::Mat::eye(4,4,CV_32F);
-    mlookAhead.at<float>(2,3) = (0.1+4) * 0.5; // near distance threshold = 0.1m, far distance threshold = 4m
-
-    mPairCandidateLoopPCD.first = static_cast<KeyFrame*>(nullptr);
-    mPairCandidateLoopPCD.second = static_cast<KeyFrame*>(nullptr);
-
-    mpRegistration = resgistrationNDTOMP();
-    
+    mnCovisibilityConsistencyTh = 3;    
 }
 
 void LoopClosing::SetTracker(Tracking *pTracker)
@@ -79,24 +69,13 @@ void LoopClosing::Run()
         if(CheckNewKeyFrames())
         {
             // Detect loop candidates and check covisibility consistency
-            // if(DetectLoop())
-            // {
-            //    // Compute similarity transformation [sR|t]
-            //    // In the stereo/RGBD case s=1
-            //    if(ComputeSim3())
-            //    {
-            //        // Perform loop fusion and pose graph optimization
-            //        CorrectLoop();
-            //    }
-            // }
-            // Detect loop candidates and check covisibility consistency
-            if(DetectLoopNDT())
+            if(DetectLoop())
             {
                // Compute similarity transformation [sR|t]
                // In the stereo/RGBD case s=1
-                if(ComputeSim3NDT())
+               if(ComputeSim3())
                {
-                    // Perform loop fusion and pose graph optimization
+                   // Perform loop fusion and pose graph optimization
                    CorrectLoop();
                }
             }
@@ -260,140 +239,6 @@ bool LoopClosing::DetectLoop()
     mpCurrentKF->SetErase();
     return false;
 }
-
-bool LoopClosing::DetectLoopNDT()
-{
-    // Time consuming check
-    auto start = std::chrono::high_resolution_clock::now();
-
-    mvpSubMapKFs.clear();
-    // Avoid that a keyframe can be erased while it is being process by this thread
-    // mpCurrentKF->SetNotErase();
-
-    {// 키 프레임 추출 및 대기열 관리
-        unique_lock<mutex> lock(mMutexLoopQueue);
-        mpCurrentKF = mlpLoopKeyFrameQueue.front();
-        mlpLoopKeyFrameQueue.pop_front();
-        // Avoid that a keyframe can be erased while it is being process by this thread
-        mpCurrentKF->SetNotErase();
-    }
-
-    //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
-    if(mpCurrentKF->mnId < mLastLoopKFid+30)
-    {
-        mpCurrentKF->SetErase();
-        return false;
-    }
-    
-    // Compare Look ahead distance between current KF and last loop KF
-    // If the distance is less than 1m, return true
-    // Look ahead distance is mean value of distance between near distance and far distance threshold
-    mPairCandidateLoopPCD.first       = static_cast<KeyFrame*>(nullptr);
-    mPairCandidateLoopPCD.second      = static_cast<KeyFrame*>(nullptr);
-    mPairCandidateLoopPCDPoint.first  = cv::Mat();
-    mPairCandidateLoopPCDPoint.second = cv::Mat();
-    // mpMap에 접근해서 모든 키프레임 가져오기
-    std::vector<KeyFrame*> keyframes = mpMap->GetAllKeyFrames();
-    double minScore = 2.0;
-    int minScoreIdx = -1;
-    // Get current keyframe's pose
-    cv::Mat currentKFPose =  mpCurrentKF->GetPoseInverse() ;
-    // Check distance between all keyframes and current keyframe
-    for ( int i = 0; i < keyframes.size(); i++ )
-    {
-        // Check accumulated distance between current keyframe and keyframe
-        float accumDistance = mpCurrentKF->GetAccumDistance() - keyframes[i]->GetAccumDistance(); 
-        if ( accumDistance < 10.0 ) // Accmulated moving distance[m] may be bigger than 10m.. 2.5 times of 4m(far distance threshold)
-        {
-            // ROS_INFO_STREAM("accumDistance() : " << accumDistance  );
-            continue;
-        }
-
-        // check if keyframe has deleted
-        if ( !keyframes[i]->mnId || keyframes[i]->isBad() || keyframes[i]->mnId == mpCurrentKF->mnId ) // 키프레임이 삭제되었거나, 현재 키프레임이거나, bad 키프레임이거나, 삭제된 키프레임이면
-        {
-            continue;
-        }
-
-        // Get Cadidate keyframe's pose
-        cv::Mat CadidateKFPose = keyframes[i]->GetPoseInverse();
-        if (mpCurrentKF->mnId < keyframes[i]->mnId + 25) // this 25 is tested value
-        {
-            continue;
-        }
-
-        // Get lookahead pose of keyframes
-        cv::Mat lookaheadPoseSource   = currentKFPose * mlookAhead; // camera view point to world coordinate -> this is z(forward), x(right), y(down) coordinate..
-        cv::Mat lookaheadPoseTarget = CadidateKFPose * mlookAhead;
-
-        // Get distance between current keyframe and keyframe
-        float distance = norm(lookaheadPoseSource - lookaheadPoseTarget, cv::NORM_L2);
-        
-        // If the distance is less than 1m, return true
-        if ( distance < minScore ) // this value is teseted value
-        {
-            // check the smallest keyframe
-            minScore = distance;
-            // save the lookahead pose of candidate keyframe
-            mPairCandidateLoopPCDPoint.first  = lookaheadPoseSource;
-            mPairCandidateLoopPCDPoint.second = lookaheadPoseTarget;
-
-            // set previous smallest distance keyframe to erased
-            if ( minScoreIdx != -1 )
-            {
-                // set this keyframe not to erased
-                keyframes[minScoreIdx]->SetErase();
-            }
-            // Save loop closing candiate keyframe
-            mpMatchedKFPCD = keyframes[i];
-            mpMatchedKFPCD->SetNotErase();
-            // save previous smallest distance keyframe index 
-            minScoreIdx = i;
-        }
-    }
-
-    // if minsScore is not changed, return false
-    if(minScoreIdx != -1)
-    {
-        mPairCandidateLoopPCD.first  = mpCurrentKF;
-        mPairCandidateLoopPCD.second = mpMatchedKFPCD;
-        // Gather near keyframes of mpMatchedKFPCD
-
-                // Get possible front and back number of accessible keyframes.
-        int accessibleFront = minScoreIdx - mNumSubmapKFs;
-        int accessibleBack = minScoreIdx + mNumSubmapKFs;
-        minScoreIdx = mNumSubmapKFs; // normal state
-        if( accessibleFront < 0 ) // not enough front keyframes
-        {
-            minScoreIdx = mNumSubmapKFs + accessibleFront; 
-            accessibleFront = 0;
-        }
-        if( accessibleBack > keyframes.size() ) // not enough back keyframes
-        {
-            minScoreIdx = accessibleBack - mNumSubmapKFs; 
-            accessibleBack = keyframes.size();
-        }
-
-        // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
-        for (int i = accessibleFront; i < accessibleBack; i++)
-        {
-            mvpSubMapKFs.push_back(keyframes[i]);
-        }
-        
-        cout << "--- Keyframe view-point-based loop detected Submap Size: " << mvpSubMapKFs.size() << " ---" << endl;
-        // Time consuming check
-        auto finish = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = finish - start;
-        std::cout << "NDT Detection Durtaion: " << elapsed.count() << std::endl;
-    
-        return true;
-    }
-
-    mpCurrentKF->SetErase();
-    // mpMatchedKFPCD->SetErase(); // mutex problem have occured -> 아마 초기에 후보자가 없는 상태에서 지우려고 해서 그런듯 -> 해결됨
-    return false;
-}
-
 
 
 bool LoopClosing::ComputeSim3()
@@ -573,190 +418,6 @@ bool LoopClosing::ComputeSim3()
 
 }
 
-// Generate Sim3 from NDT registration result
-bool LoopClosing::ComputeSim3NDT()
-{
-    // Time consuming check
-    auto start = std::chrono::high_resolution_clock::now();
-        
-
-    mpCurrentKF->SetNotErase();
-    mpMatchedKFPCD->SetNotErase();
-    
-    // Generate Submap from mvpSubMapKFs using relative pose among closest keyframe and near keyframes
-    
-    // Get relative pose between closest keyframe and current keyframe
-    cv::Mat Tst = mpCurrentKF->GetPose() * mpMatchedKFPCD->GetPoseInverse(); // target(candiate keyframe:Tcw) -> source(current keyframe:Twc)
-    Eigen::Matrix4f Tst_eigen = Eigen::Matrix4f::Identity();
-    Tst_eigen = Converter::toMatrix4f(Tst);
-    
-    // Generate submap pointcloud 
-    pcl::PointCloud<pcl::PointXYZI>::Ptr submapCloud(new pcl::PointCloud<pcl::PointXYZI>());
-    submapCloud->reserve(mpMatchedKFPCD->GetPointCloud()->size() * mvpSubMapKFs.size());
-    Eigen::Matrix4f Tnt_eigen = Eigen::Matrix4f::Identity();
-
-    for (const auto& candiKF : mvpSubMapKFs)
-    {
-        // Calculate relative pose between closest keyframe to candiKF.
-        cv::Mat Tnt = candiKF->GetPose() * mpMatchedKFPCD->GetPoseInverse(); // n:near(candiate keyframe:Tcw) <- target(closest keyframe:Twc)
-        Tnt_eigen = Converter::toMatrix4f(Tnt);
-
-        for (const auto& point : candiKF->GetPointCloud()->points)
-        {
-            pcl::PointXYZI destPoint;
-            destPoint.getVector4fMap() = Tnt_eigen * point.getVector4fMap();
-            submapCloud->push_back(destPoint);
-            // destPoint.intensity = 0.0;
-        }
-    }
-
-
-    // Voxel filter using octree! -> 어차피 NDT 복셀화 할건데 이거 필요한가?
-    submapCloud->width = submapCloud->size();
-    submapCloud->height = 1;
-    submapCloud->is_dense = false;
-    
-    // pcl::octree::OctreePointCloud<PointT> octree(mSubmapVoxleSize);
-    // octree.setInputCloud(submapCloud);
-    // octree.addPointsFromInputCloud();
-
-    // pcl::PointCloud<PointT>::Ptr filtered(new pcl::PointCloud<PointT>());
-    // octree.getOccupiedVoxelCenters(filtered->points);
-
-    // filtered->width = filtered->size();
-    // filtered->height = 1;
-    // filtered->is_dense = false;
-    
-    // Now time to do registration ~
-
-    pcl::PointCloud<pcl::PointXYZI>::Ptr aligned(new pcl::PointCloud<pcl::PointXYZI>());
-    pcl::PointCloud<pcl::PointXYZI>::Ptr sourceCloud(new pcl::PointCloud<pcl::PointXYZI>());
-    for (const auto& point : mpCurrentKF->GetPointCloud()->points)
-    {
-        pcl::PointXYZI destPoint;
-        destPoint.getVector4fMap() = point.getVector4fMap();
-        // destPoint.intensity = 0.0;
-        sourceCloud->push_back(destPoint);
-    }
-
-    mpRegistration->setInputTarget(submapCloud);
-    mpRegistration->setInputSource(sourceCloud);
-    mpRegistration->align(*aligned, Tst_eigen);
-    
-    // Get Matching Score
-    float score = mpRegistration->getFitnessScore();
-    if ( !mpRegistration->hasConverged() || score > 0.3 ) // 0.3 is tested value
-    {
-        cout << "NDT Registration Failed! Score: " << score << endl;
-        return false;
-    }
-    cout << "NDT Registration done sucessfully Score: " << score << endl;
-    
-    // Get Transformation Matrix
-    Eigen::Matrix4f Tsc_eigen = mpRegistration->getFinalTransformation(); // candiate keyframe -> estimated current keyframe
-    // Eigen::Matrix4f Tts_eigen = mpRegistration->getFinalTransformation().inverse(); // source to target(current to matched)
-    // registration을 CandiKF의 카메라 좌표계가 기준되도록 서브맵을 구성하고 있었고, 소스의 시작 위치가 동일하게 여기서 시작
-    // Guess값을 통해 currentKF와 CandiKF 사이의 상대 변환을 하여 원래 상대위치로 움직임
-    // getFianlTransformation()의 리턴값은 Guess값을 포함한 Source to Target이니 결국 원점이 같은 경우
-    // CandiKF -> Estimated CurrentKF로의 변환을 의미함
-    // Sim3 또한 CandiKF -> Estimated CurrentKF로의 변환을 의미함
-    // 위 tf는 상대 변환을 구한건데 Tsc의 경우 CandiKF -> CurrentKF로의 변환을 의미함
-    // Tts는 Tsc의 인버스.. 즉 CurrentKF -> CandiKF로의 상대 변환 의미
-
-    // Generate Sim3
-    cv::Mat Tsc = Converter::toCvMat(Tsc_eigen);
-    cv::Mat R = Tsc.rowRange(0,3).colRange(0,3);
-    cv::Mat t = Tsc.rowRange(0,3).col(3);
-    const float s = 1.0f; // mfixedScale이 true면 1.0
-    vector<MapPoint*> vpMapPointMatches(mpCurrentKF->GetMapPointMatches().size(), static_cast<MapPoint*>(NULL));
-    
-    ORBmatcher matcher(0.75,true); // 
-    matcher.SearchBySim3(mpCurrentKF,mpMatchedKFPCD,vpMapPointMatches,s,R,t,7.5); // Sim3를 사용해서 매칭을 수행함
-    // 여기서 뭔가 고쳐줘야 할 것 같은데
-
-    g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
-    const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, mpMatchedKFPCD, vpMapPointMatches, gScm, 10, mbFixScale); // vpMapPointMatches가 비어있어도, 내부에서 새로운 매칭을 다시 찾는 시도를 함
-    cout << "Number of Inliers : " << nInliers << endl;
-    
-    // Check wether optimization is succesful by number of Inliers(matched points)
-    if(nInliers>=20)
-    {
-        mpMatchedKF = mpMatchedKFPCD;
-        g2o::Sim3 gSmw(Converter::toMatrix3d(mpMatchedKFPCD->GetRotation()),Converter::toVector3d(mpMatchedKFPCD->GetTranslation()),1.0);
-        mg2oScw = gScm*gSmw;  // World -> matched candiate keyframe (pKF) -> current keyframe / 그리고 gScm는 최적화된 값이 들어감
-        mScw = Converter::toCvMat(mg2oScw);
-
-        mvpCurrentMatchedPoints = vpMapPointMatches; // NDT로 SE3를 찾아도 이 부분을 설정해줘야 다음 과정을 진행할 수 있음        
-    }
-    else
-    {
-        cout << "Comptuing Sim3 Failed! Nubmer of Inliers are too few. : " << nInliers << endl;
-        mpCurrentKF->SetErase();
-        mpMatchedKFPCD->SetErase();
-        return false;
-    }
-    
-    // Same Processing with ComputeSim3()
-
-    // Retrieve MapPoints seen in Loop Keyframe and neighbors
-    vector<KeyFrame*> vpLoopConnectedKFs = mpMatchedKFPCD->GetVectorCovisibleKeyFrames(); // 매칭된 키프레임과 공변성 관계에 있는 키프레임들을 추출함
-    vpLoopConnectedKFs.push_back(mpMatchedKFPCD); // 
-    mvpLoopMapPoints.clear();
-    for(vector<KeyFrame*>::iterator vit=vpLoopConnectedKFs.begin(); vit!=vpLoopConnectedKFs.end(); vit++)
-    {
-        KeyFrame* pKF = *vit;
-        vector<MapPoint*> vpMapPoints = pKF->GetMapPointMatches(); // 각 키 프레임 별로 맵 포인트들을 추출함
-        for(size_t i=0, iend=vpMapPoints.size(); i<iend; i++)
-        {
-            MapPoint* pMP = vpMapPoints[i];
-            if(pMP)
-            {
-                if(!pMP->isBad() && pMP->mnLoopPointForKF!=mpCurrentKF->mnId) // 맵 포인트가 bad가 아니고, 현재 키프레임과 연결된 맵 포인트가 아니라면
-                {
-                    mvpLoopMapPoints.push_back(pMP); // 맵 포인트를 저장함
-                    pMP->mnLoopPointForKF = mpCurrentKF->mnId; // 현재 키프레임과 연결된 맵 포인트로 설정함
-                }
-            }
-        }
-    }
-
-    // Find more matches projecting with the computed Sim3
-    matcher.SearchByProjection(mpCurrentKF, mScw, mvpLoopMapPoints, mvpCurrentMatchedPoints,10);
-
-    // If enough matches accept Loop
-    int nTotalMatches = 0;
-    for(size_t i=0; i<mvpCurrentMatchedPoints.size(); i++)
-    {
-        if(mvpCurrentMatchedPoints[i])
-            nTotalMatches++;
-    }
-
-    if(nTotalMatches>=40)
-    {
-        cout << "Total Matched Points: " << nTotalMatches << endl;
-        
-        // Time consuming check
-        auto finish = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = finish - start;
-        std::cout << "NDT Sim3 computing Durtaion: " << elapsed.count() << std::endl;
-        
-        return true;
-    }
-    else
-    {
-        cout << "Matching has failed! Total Matched Points: " << nTotalMatches << endl;
-        // Time consuming check
-        auto finish = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsed = finish - start;
-        std::cout << "NDT Sim3 computing Durtaion: " << elapsed.count() << std::endl;
-        
-        mpCurrentKF->SetErase();
-        mpMatchedKFPCD->SetErase();
-        return false;
-    }
-
-    return false;
-}
 
 void LoopClosing::CorrectLoop()
 {
@@ -1139,25 +800,6 @@ bool LoopClosing::isFinished()
 {
     unique_lock<mutex> lock(mMutexFinish);
     return mbFinished;
-}
-
-// Get the loop closure candidate pair.
-std::pair<KeyFrame*, KeyFrame*>  LoopClosing::GetLoopClosingPair()
-{
-    unique_lock<mutex> lock(mMutexLoopQueue);
-    return mPairCandidateLoopPCD;
-}
-// Get the point position loop closure candidate pair.
-std::pair<cv::Mat, cv::Mat> LoopClosing::GetLoopClosingPairPoint()
-{
-    unique_lock<mutex> lock(mMutexLoopQueue);
-    return mPairCandidateLoopPCDPoint;
-}
-
-std::vector<KeyFrame*> LoopClosing::GetSubmapKFs()
-{
-    unique_lock<mutex> lock(mMutexLoopQueue);
-    return mvpSubMapKFs;
 }
 
 } //namespace ORB_SLAM
