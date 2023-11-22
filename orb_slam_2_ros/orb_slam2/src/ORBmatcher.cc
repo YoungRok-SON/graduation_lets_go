@@ -1163,7 +1163,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
         if(p3Dc2.at<float>(2)<0.0)
             continue;
 
-        // Projection to Camera frame
+        // Projection to Camera frame 2
         const float invz = 1.0/p3Dc2.at<float>(2);
         const float x = p3Dc2.at<float>(0)*invz;
         const float y = p3Dc2.at<float>(1)*invz;

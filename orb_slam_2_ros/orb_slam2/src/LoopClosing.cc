@@ -672,7 +672,6 @@ bool LoopClosing::ComputeSim3NDT()
     
     ORBmatcher matcher(0.75,true); // 
     matcher.SearchBySim3(mpCurrentKF,mpMatchedKFPCD,vpMapPointMatches,s,R,t,7.5); // Sim3를 사용해서 매칭을 수행함
-    // 여기서 뭔가 고쳐줘야 할 것 같은데
 
     g2o::Sim3 gScm(Converter::toMatrix3d(R),Converter::toVector3d(t),s); // 얘가 결국 최종적으로 계산된 Sim3를 의미함
     const int nInliers = Optimizer::OptimizeSim3(mpCurrentKF, mpMatchedKFPCD, vpMapPointMatches, gScm, 10, mbFixScale); // vpMapPointMatches가 비어있어도, 내부에서 새로운 매칭을 다시 찾는 시도를 함
