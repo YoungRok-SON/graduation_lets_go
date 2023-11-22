@@ -95,6 +95,9 @@ public:
     // Returns true if Global Bundle Adjustment is running
     bool isRunningGBA();
 
+    // GBA: Global Bundle Adjustment return if Global Bundle Adjustment is finished
+    bool isFinishedGBA() ;
+
     // Reset the system (clear map)
     void Reset();
 
@@ -190,7 +193,7 @@ private:
     // Local Mapper. It manages the local map and performs local bundle adjustment.
     LocalMapping* mpLocalMapper;
 
-    // Loop Closer. It searches loops with every new keyframe. If there is a loop it performs
+// Loop Closer. It searches loops with every new keyframe. If there is a loop it performs
     // a pose graph optimization and full bundle adjustment (in a new thread) afterwards.
     LoopClosing* mpLoopCloser;
 

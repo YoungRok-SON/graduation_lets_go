@@ -118,7 +118,9 @@ bool LoopClosing::CheckNewGPOKeyFrames()
 KeyFrame* LoopClosing::GetGPOKeyFrames()
 {
     unique_lock<mutex> lock(mMutexLoopQueue);
+    KeyFrame* pKF = mlpGPOKeyFrameQueue.front();
     mlpGPOKeyFrameQueue.pop_front();
+    return pKF;
 }
 
 

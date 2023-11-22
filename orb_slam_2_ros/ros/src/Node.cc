@@ -118,7 +118,8 @@ void Node::Update ()
 
   if ( orb_slam_->MapChanged() )
   {
-    CallUpdatedKeyFrameService();
+    if ( !orb_slam_->isRunningGBA() )
+      CallUpdatedKeyFrameService();
   }
 
 }
@@ -136,6 +137,7 @@ bool Node::CallUpdatedKeyFrameService( )
     }
     
     srv.request.poses.resize(keyframes.size());
+    srv.request.keyframe_ids.resize(keyframes.size());
     for (size_t i = 0; i < keyframes.size(); i++)
     {
       if( keyframes[i]->isBad() && keyframes[i] == nullptr )

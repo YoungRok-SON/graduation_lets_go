@@ -335,6 +335,11 @@ bool System::isRunningGBA() // GBA: Global Bundle Adjustment
     return  mpLoopCloser->isRunningGBA();
 }
 
+bool System::isFinishedGBA() // GBA: Global Bundle Adjustment
+{
+    return  mpLoopCloser->isFinishedGBA();
+}
+
 void System::Reset()
 {
     unique_lock<mutex> lock(mMutexReset);
