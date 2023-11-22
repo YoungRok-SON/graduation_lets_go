@@ -97,7 +97,11 @@
         "openglsupport": "cpp",
         "specialfunctions": "cpp",
         "splines": "cpp",
-        "*.txx": "cpp"
+        "*.txx": "cpp",
+        "compare": "cpp",
+        "concepts": "cpp",
+        "numbers": "cpp",
+        "stop_token": "cpp"
     },
     "ros.distro": "noetic",
     "C_Cpp.errorSquiggles": "disabled",

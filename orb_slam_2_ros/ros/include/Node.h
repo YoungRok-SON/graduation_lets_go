@@ -50,6 +50,7 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 #include "keyframe_msgs/keyframe.h"
+#include "keyframe_msgs/updatedKeyFrame.h"
 
 #include "System.h"
 
@@ -94,6 +95,9 @@ class Node
     void PublishKeyFramePose ( const std::vector<ORB_SLAM2::KeyFrame*> keyframes);
     // Keyframe data Publisher to Global Pose Graph Manager
     void PublishKeyFrameData ( );
+    // Updated keyframe publishing service
+    // bool updatedKeyFrameServiceCallback( keyframe_msgs::updatedKeyFrame::Request &req, keyframe_msgs::updatedKeyFrame::Response &res);
+    bool CallUpdatedKeyFrameService( );
 
     
     // initialization Transform listener
@@ -117,9 +121,10 @@ class Node
     ros::Publisher pose_publisher_;
     ros::Publisher status_gba_publisher_;
     ros::Publisher all_keyframe_pose_publisher_; // New Debuging Feature
-    ros::Publisher Keyframe_publisher_; // New Debuging Feature
+    ros::Publisher Keyframe_publisher_; // YR
 
     ros::ServiceServer service_server_;
+    ros::ServiceClient updated_keyframe_client_; // YR
 
     std::string name_of_node_;
     ros::NodeHandle node_handle_;

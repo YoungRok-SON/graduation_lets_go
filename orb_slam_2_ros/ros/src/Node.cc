@@ -73,6 +73,8 @@ void Node::Init () {
   all_keyframe_pose_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/keyframe_pose", 1);
   Keyframe_publisher_          = node_handle_.advertise<keyframe_msgs::keyframe> (name_of_node_+"/keyframe", 1);
  
+  // srv
+  updated_keyframe_client_ = node_handle_.serviceClient<keyframe_msgs::updatedKeyFrame>(name_of_node_+"/updated_keyframes");
 }
 
 // Node update and publish
@@ -114,6 +116,63 @@ void Node::Update ()
     PublishKeyFrameData();
   }
 
+  if ( orb_slam_->MapChanged() )
+  {
+    CallUpdatedKeyFrameService();
+  }
+
+}
+
+bool Node::CallUpdatedKeyFrameService( )
+{
+    // Publish updated keyframes
+    keyframe_msgs::updatedKeyFrame srv;
+    std::vector<ORB_SLAM2::KeyFrame*> keyframes = orb_slam_->GetAllKeyFrames();
+
+    if( keyframes.empty() )
+    {
+      ROS_WARN("Keyframe vector is empty!");
+      return false;
+    }
+    
+    srv.request.poses.resize(keyframes.size());
+    for (size_t i = 0; i < keyframes.size(); i++)
+    {
+      if( keyframes[i]->isBad() && keyframes[i] == nullptr )
+        continue;
+      // Convert the pose to a transform
+      tf2::Transform pose_orb_to_map = TransformFromMat(keyframes[i]->GetPose());
+
+      // Get the position and orientation of the transform
+      tf2::Vector3 position_vec = pose_orb_to_map.getOrigin();
+      tf2::Quaternion orientation_quat = pose_orb_to_map.getRotation();
+
+      srv.request.header.stamp = ros::Time( keyframes[i]->mTimeStamp );
+      srv.request.header.frame_id = map_frame_id_param_;
+      srv.request.poses[i].position.x = position_vec.x();
+      srv.request.poses[i].position.y = position_vec.y();
+      srv.request.poses[i].position.z = position_vec.z();
+      srv.request.poses[i].orientation.x = orientation_quat.x();
+      srv.request.poses[i].orientation.y = orientation_quat.y();
+      srv.request.poses[i].orientation.z = orientation_quat.z();
+      srv.request.poses[i].orientation.w = orientation_quat.w();
+
+      srv.request.keyframe_ids[i] = keyframes[i]->mnId;
+      srv.request.vehicle_number = 1;
+    }
+    
+    // call service and check request
+
+    if ( updated_keyframe_client_.call(srv)  )
+    {
+      ROS_INFO("Updated keyframes published. state: %d", srv.response.success);
+      return true;
+    }
+    else
+    {
+      ROS_ERROR("Failed to call service updated_keyframes");
+      return false;
+    }
 }
 
 
@@ -281,6 +340,10 @@ void Node::PublishKeyFramePose( const std::vector<ORB_SLAM2::KeyFrame*> keyframe
 
 
   for ( auto it = keyframes.begin(); it != keyframes.end(); it++) {
+
+    if ( (*it)->isBad() && (*it) == nullptr )
+      continue;
+
     // Get the keyframe pose
     cv::Mat position = (*it)->GetPose();
 
@@ -473,7 +536,8 @@ bool Node::SaveMapSrv (orb_slam2_ros::SaveMap::Request &req, orb_slam2_ros::Save
 }
 
 
-void Node::LoadOrbParameters (ORB_SLAM2::ORBParameters& parameters) {
+void Node::LoadOrbParameters (ORB_SLAM2::ORBParameters& parameters) 
+{
   //ORB SLAM configuration parameters
   node_handle_.param(name_of_node_ + "/camera_fps", parameters.maxFrames, 30);
   node_handle_.param(name_of_node_ + "/camera_rgb_encoding", parameters.RGB, true);
@@ -535,4 +599,5 @@ void Node::LoadOrbParameters (ORB_SLAM2::ORBParameters& parameters) {
     ROS_ERROR ("Failed to get camera calibration parameters from the launch file.");
     throw std::runtime_error("No cam calibration");
   }
+
 }

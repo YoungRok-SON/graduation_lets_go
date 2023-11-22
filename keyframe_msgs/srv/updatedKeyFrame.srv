@@ -1,0 +1,8 @@
+# 요청 부분
+Header header
+geometry_msgs/Pose[] poses
+int64[] keyframe_ids
+int64 vehicle_number
+---
+# 응답 부분
+bool success
