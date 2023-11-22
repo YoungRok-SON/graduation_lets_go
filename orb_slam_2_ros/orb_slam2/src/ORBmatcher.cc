@@ -1156,13 +1156,14 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
             continue;
 
         cv::Mat p3Dw = pMP->GetWorldPos();
-        cv::Mat p3Dc1 = R1w*p3Dw + t1w;
-        cv::Mat p3Dc2 = sR21*p3Dc1 + t21;
+        cv::Mat p3Dc1 = R1w*p3Dw + t1w;   // world to KF1
+        cv::Mat p3Dc2 = sR21*p3Dc1 + t21; // KF1 to KF2
 
         // Depth must be positive
         if(p3Dc2.at<float>(2)<0.0)
             continue;
 
+        // Projection to Camera frame
         const float invz = 1.0/p3Dc2.at<float>(2);
         const float x = p3Dc2.at<float>(0)*invz;
         const float y = p3Dc2.at<float>(1)*invz;
