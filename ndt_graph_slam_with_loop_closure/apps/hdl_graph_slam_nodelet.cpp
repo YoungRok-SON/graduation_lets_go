@@ -192,9 +192,11 @@ namespace hdl_graph_slam
      */
     void cloud_callback(const geometry_msgs::PoseStampedConstPtr &odom_msg, const sensor_msgs::PointCloud2::ConstPtr &cloud_msg) // odometry 데이터랑 포인트 클라우드를 같이 수신
     {
+      // Get odom pose
       const ros::Time &stamp = cloud_msg->header.stamp;
       Eigen::Isometry3d odom = poseStampedPtr2isometry(odom_msg);
 
+      // Get Point Cloud Data
       pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
       pcl::fromROSMsg(*cloud_msg, *cloud);
       if (base_frame_id.empty())
@@ -202,7 +204,8 @@ namespace hdl_graph_slam
         base_frame_id = cloud_msg->header.frame_id;
       }
 
-      if (!keyframe_updater->update(odom)) // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
+      // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
+      if (!keyframe_updater->update(odom)) 
       {
         std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
         if (keyframe_queue.empty()) // keyframe_queue가 비어있다면
@@ -220,14 +223,14 @@ namespace hdl_graph_slam
       double accum_d = keyframe_updater->get_accum_distance();
       KeyFrame::Ptr keyframe;
       // New element of KeyFrame Leaves
-      if(create_scan_ndt_)
-      {
-        keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, leaf_voxel_size_, min_nr_));
-        if(debug_ndt_scan_marker_pub.getNumSubscribers() || debug_ndt_scan_arrow_marker_pub.getNumSubscribers())  // Debug
-          create_marker_array_ndt(keyframe);
-      }
-      else
-        keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud)); 
+      // if(create_scan_ndt_)
+      // {
+      //   keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, leaf_voxel_size_, min_nr_));
+      //   if(debug_ndt_scan_marker_pub.getNumSubscribers() || debug_ndt_scan_arrow_marker_pub.getNumSubscribers())  // Debug
+      //     create_marker_array_ndt(keyframe);
+      // }
+      // else
+        keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud));  // 이부분을 
 
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
       keyframe_queue.push_back(keyframe); // 생성한 키프레임 객체를 큐에 넣기
@@ -660,24 +663,24 @@ namespace hdl_graph_slam
       // To Do : Topic명 스캔, 서브맵, 전체맵에 대해 변수명 잘 구별해주기
 
       // NDT Leaf Visualization
-      if(debug_ndt_map_marker_pub)
-      {
-        ROS_INFO("Generate NDT Leaves");
-        // Voxel Grid Covariance
-        // 요놈이 문제 -> 이 필터에 들어가기 전까지는 cloud도 정상적인데 
-        pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
-        generate_ndt_scan.setInputCloud(cloud);
-        generate_ndt_scan.setLeafSize(leaf_voxel_size_, leaf_voxel_size_, leaf_voxel_size_);
-        generate_ndt_scan.setMinPointPerVoxel(10);
-        generate_ndt_scan.filter();
-        LeafMap leaves = generate_ndt_scan.getLeaves();
-        ROS_INFO("NDT Map Size: %ld", leaves.size());
+      // if(debug_ndt_map_marker_pub)
+      // {
+      //   ROS_INFO("Generate NDT Leaves");
+      //   // Voxel Grid Covariance
+      //   // 요놈이 문제 -> 이 필터에 들어가기 전까지는 cloud도 정상적인데 
+      //   pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
+      //   generate_ndt_scan.setInputCloud(cloud);
+      //   generate_ndt_scan.setLeafSize(leaf_voxel_size_, leaf_voxel_size_, leaf_voxel_size_);
+      //   generate_ndt_scan.setMinPointPerVoxel(10);
+      //   generate_ndt_scan.filter();
+      //   LeafMap leaves = generate_ndt_scan.getLeaves();
+      //   ROS_INFO("NDT Map Size: %ld", leaves.size());
 
-        // create_maker_array_ndt_whole_map() 넣기
-        create_marker_array_ndt(cloud, leaves);
+      //   // create_maker_array_ndt_whole_map() 넣기
+      //   create_marker_array_ndt(cloud, leaves);
         
-        ROS_INFO("Marker Publish Done");
-      }
+      //   ROS_INFO("Marker Publish Done");
+      // }
       sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2()); 
       pcl::toROSMsg(*cloud, *cloud_msg);  // 실행하면 cloud가 비워짐.
       map_points_pub.publish(cloud_msg);

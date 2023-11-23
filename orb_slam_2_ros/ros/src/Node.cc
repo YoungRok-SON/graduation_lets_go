@@ -143,7 +143,7 @@ bool Node::CallUpdatedKeyFrameService( )
       if( keyframes[i]->isBad() && keyframes[i] == nullptr )
         continue;
       // Convert the pose to a transform
-      tf2::Transform pose_orb_to_map = TransformFromMat(keyframes[i]->GetPose());
+      tf2::Transform pose_orb_to_map = TransformFromMat(keyframes[i]->GetPoseInverse());
 
       // Get the position and orientation of the transform
       tf2::Vector3 position_vec = pose_orb_to_map.getOrigin();
@@ -187,11 +187,11 @@ void Node::PublishKeyFrameData()
 {
   // Get Keyframe if loop closure get a optimized pose.
   ORB_SLAM2::KeyFrame* pKF = orb_slam_->GetOptimizedKeyFrame();
-  if ( pKF )
+  if ( !pKF->isBad() && pKF != nullptr )
   {
     keyframe_msgs::keyframe kf_msg;
     // Convert pose to std_msgs::Pose
-     cv::Mat poseKF = pKF->GetPose();
+     cv::Mat poseKF = pKF->GetPoseInverse();
 
     // Convert the pose to a transform
     tf2::Transform pose_orb_to_map = TransformFromMat(poseKF);

@@ -20,7 +20,8 @@ public:
    * @brief constructor
    * @param pnh
    */
-  KeyframeUpdater(ros::NodeHandle& pnh) : is_first(true), prev_keypose(Eigen::Isometry3d::Identity()) {
+  KeyframeUpdater(ros::NodeHandle& pnh) : is_first(true), prev_keypose(Eigen::Isometry3d::Identity()) 
+  {
     keyframe_delta_trans = pnh.param<double>("keyframe_delta_trans", 2.0);
     keyframe_delta_angle = pnh.param<double>("keyframe_delta_angle", 2.0);
 
@@ -32,9 +33,11 @@ public:
    * @param pose  pose of the frame
    * @return  if true, the frame should be registered
    */
-  bool update(const Eigen::Isometry3d& pose) {
+  bool update(const Eigen::Isometry3d& pose) 
+  {
     // first frame is always registered to the graph
-    if(is_first) {
+    if(is_first) 
+    {
       is_first = false;
       prev_keypose = pose;
       return true;
