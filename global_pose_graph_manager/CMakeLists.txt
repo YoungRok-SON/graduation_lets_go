@@ -89,6 +89,7 @@ catkin_package(
     sensor_msgs
     std_msgs
     tf_conversions
+    keyframe_msgs
 #  DEPENDS system_lib
 )
 

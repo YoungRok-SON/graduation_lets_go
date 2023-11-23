@@ -10,8 +10,10 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <pcl/point_types.h>
 
-namespace hdl_graph_slam {
+namespace hdl_graph_slam 
+{
 
 /**
  * @brief convert Eigen::Matrix to geometry_msgs::TransformStamped
@@ -93,6 +95,24 @@ static Eigen::Isometry3d odom2isometry(const nav_msgs::OdometryConstPtr& odom_ms
   return isometry;
 }
 
+static pcl::PointCloud<pcl::PointXYZI>::Ptr XYZRGB2XYZI( pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb)
+{
+  pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
+  cloud->reserve(cloud_rgb->size());
+  for (const auto& pt : cloud_rgb->points)
+  {
+    pcl::PointXYZI pt_i;
+    pt_i.x = pt.x;
+    pt_i.y = pt.y;
+    pt_i.z = pt.z;
+    pt_i.intensity = 0.0;
+    cloud->push_back(pt_i);
+  }
+  cloud->width = cloud->size();
+  cloud->height = 1;
+  cloud->is_dense = false;
+  return cloud;
+}
 }  // namespace hdl_graph_slam
 
 #endif  // ROS_UTILS_HPP

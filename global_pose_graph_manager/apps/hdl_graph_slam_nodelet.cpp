@@ -21,22 +21,15 @@
 #include <geodesy/utm.h>
 #include <geodesy/wgs84.h>
 #include <pcl_ros/point_cloud.h>
-#include <message_filters/subscriber.h>
-#include <message_filters/time_synchronizer.h>
-#include <message_filters/sync_policies/approximate_time.h>
 #include <tf_conversions/tf_eigen.h>
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 
 #include <std_msgs/Time.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <nmea_msgs/Sentence.h>
-#include <sensor_msgs/Imu.h>
-#include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <geographic_msgs/GeoPointStamped.h>
 #include <visualization_msgs/MarkerArray.h>
-#include <hdl_graph_slam/FloorCoeffs.h>
+#include "keyframe_msgs/keyframe.h"
 
 #include <hdl_graph_slam/SaveMap.h>
 #include <hdl_graph_slam/LoadGraph.h>
@@ -54,11 +47,9 @@
 #include <hdl_graph_slam/loop_detector.hpp>
 #include <hdl_graph_slam/information_matrix_calculator.hpp>
 #include <hdl_graph_slam/map_cloud_generator.hpp>
-#include <hdl_graph_slam/nmea_sentence_parser.hpp>
 
 #include <g2o/types/slam3d/edge_se3.h>
 #include <g2o/types/slam3d/vertex_se3.h>
-#include <g2o/edge_se3_plane.hpp>
 #include <g2o/edge_se3_priorxy.hpp>
 #include <g2o/edge_se3_priorxyz.hpp>
 #include <g2o/edge_se3_priorvec.hpp>
@@ -75,7 +66,7 @@ namespace hdl_graph_slam
   {
   public:
     typedef pcl::PointXYZI PointT;
-    typedef message_filters::sync_policies::ApproximateTime<geometry_msgs::PoseStamped, sensor_msgs::PointCloud2> ApproxSyncPolicy;
+    typedef pcl::PointXYZRGB PointC;
     typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
     typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
 
@@ -89,7 +80,7 @@ namespace hdl_graph_slam
       private_nh = getPrivateNodeHandle();
 
       // init parameters
-      published_odom_topic = private_nh.param<std::string>("published_odom_topic", "/odom");
+      // published_odom_topic = private_nh.param<std::string>("published_odom_topic", "/odom");
       map_frame_id = private_nh.param<std::string>("map_frame_id", "map");
       odom_frame_id = private_nh.param<std::string>("odom_frame_id", "odom");
       map_cloud_resolution = private_nh.param<double>("map_cloud_resolution", 0.05);
@@ -105,70 +96,50 @@ namespace hdl_graph_slam
       floor_plane_node = nullptr;
       graph_slam.reset(new GraphSLAM(private_nh.param<std::string>("g2o_solver_type", "lm_var")));
 
-      // 이 친구들은 뭐하는 친구들인지 좀 더 봐야할 듯
+      // Graph SLAM Functionalities
       keyframe_updater.reset(new KeyframeUpdater(private_nh));
       loop_detector.reset(new LoopDetector(private_nh)); // Loop Closure 클래스 객체 생성
       map_cloud_generator.reset(new MapCloudGenerator());
       inf_calclator.reset(new InformationMatrixCalculator(private_nh));
-      nmea_parser.reset(new NmeaSentenceParser());
-
-      // 추가 엣지를 위한 정보들
-      gps_time_offset = private_nh.param<double>("gps_time_offset", 0.0);
-      gps_edge_stddev_xy = private_nh.param<double>("gps_edge_stddev_xy", 10000.0);
-      gps_edge_stddev_z = private_nh.param<double>("gps_edge_stddev_z", 10.0);
-      floor_edge_stddev = private_nh.param<double>("floor_edge_stddev", 10.0);
-
-      // 추가 엣지를 위한 정보들
-      imu_time_offset = private_nh.param<double>("imu_time_offset", 0.0);
-      enable_imu_orientation = private_nh.param<bool>("enable_imu_orientation", false);
-      enable_imu_acceleration = private_nh.param<bool>("enable_imu_acceleration", false);
-      imu_orientation_edge_stddev = private_nh.param<double>("imu_orientation_edge_stddev", 0.1);
-      imu_acceleration_edge_stddev = private_nh.param<double>("imu_acceleration_edge_stddev", 3.0);
 
       points_topic = private_nh.param<std::string>("points_topic", "/velodyne_points");
 
       // subscribers
-      odom_sub.reset(new message_filters::Subscriber<geometry_msgs::PoseStamped>(mt_nh, published_odom_topic, 256));
-      cloud_sub.reset(new message_filters::Subscriber<sensor_msgs::PointCloud2>(mt_nh, "/filtered_points", 32));
-      sync.reset(new message_filters::Synchronizer<ApproxSyncPolicy>(ApproxSyncPolicy(32), *odom_sub, *cloud_sub)); // 포인트클라우드랑 포즈 정보랑 엮으려고 필터 사용
-      sync->registerCallback(boost::bind(&HdlGraphSlamNodelet::cloud_callback, this, _1, _2));
-      imu_sub = nh.subscribe("/gpsimu_driver/imu_data", 1024, &HdlGraphSlamNodelet::imu_callback, this);
-      floor_sub = nh.subscribe("/floor_detection/floor_coeffs", 1024, &HdlGraphSlamNodelet::floor_coeffs_callback, this);
+      // Subscriber about Keyframe_msgs 
+      // Service server for updatedKeyframe resquest
+
+
       
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
       /* Debugging Publisher for Loop Closure */
       debug_loop_closer_aligned_pub      = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_aligned", 1, true);
       debug_loop_closer_target_pub       = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
       debug_loop_closer_source_pub       = nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
       debug_loop_closure_target_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
       debug_loop_closure_source_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
-      /* Debugging Publisher for NDT Things */
+
+      /* Publisher for Debugging  NDT Things */
       debug_ndt_scan_arrow_marker_pub    = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan_arrow", 1, true);
       debug_ndt_scan_marker_pub          = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
       debug_ndt_map_marker_pub           = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
       debug_loop_closure_sub_map_pub     = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/loop_closure_sub_map", 1, true);
-      // New Features
+
+      /* Variables for NDT things */
       leaf_voxel_size_    = private_nh.param<double>("leaf_voxel_size", 0.5);
       create_scan_ndt_    = private_nh.param<bool>("create_scan_ndt", false);
       min_nr_             = private_nh.param<int>("min_nr", 10);
       ndt_leaf_min_scale_ = private_nh.param<double>("ndt_leaf_min_scale", 0.01);
       use_submap_loop_    = private_nh.param<bool>("use_submap_loop", false);
 
-      // To Do: (Loop Closing 이후) 맵을 잘라서 Server로 보내주거나, 일정 시간 마다 NDT 맵을 잘라서 Keyframe에 대응시켜 보내주는 콜백 추가
-
-
-
+      // Keyframe Subscriber
+      keyframe_sub_ = nh.subscribe("/orb_slam2_rgbd/keyframe", 16, &HdlGraphSlamNodelet::keyframe_callback, this);
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-      if (private_nh.param<bool>("enable_gps", true))
-      {
-        gps_sub = mt_nh.subscribe("/gps/geopoint", 1024, &HdlGraphSlamNodelet::gps_callback, this);
-        nmea_sub = mt_nh.subscribe("/gpsimu_driver/nmea_sentence", 1024, &HdlGraphSlamNodelet::nmea_callback, this);
-        navsat_sub = mt_nh.subscribe("/gps/navsat", 1024, &HdlGraphSlamNodelet::navsat_callback, this);
-      }
 
-      // publishers
-      markers_pub = mt_nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
-      odom2map_pub = mt_nh.advertise<geometry_msgs::TransformStamped>("/hdl_graph_slam/odom2pub", 16);
+
+      // Publishers
+      markers_pub    = mt_nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
+      odom2map_pub   = mt_nh.advertise<geometry_msgs::TransformStamped>("/hdl_graph_slam/odom2pub", 16);
       map_points_pub = mt_nh.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/map_points", 1, true);
       read_until_pub = mt_nh.advertise<std_msgs::Header>("/hdl_graph_slam/read_until", 32);
 
@@ -185,24 +156,20 @@ namespace hdl_graph_slam
     }
 
   private:
-    /**
-     * @brief received point clouds are pushed to #keyframe_queue
-     * @param odom_msg
-     * @param cloud_msg
-     */
-    void cloud_callback(const geometry_msgs::PoseStampedConstPtr &odom_msg, const sensor_msgs::PointCloud2::ConstPtr &cloud_msg) // odometry 데이터랑 포인트 클라우드를 같이 수신
+
+    void keyframe_callback(const keyframe_msgs::keyframe &keyframe_msg)
     {
       // Get odom pose
-      const ros::Time &stamp = cloud_msg->header.stamp;
-      Eigen::Isometry3d odom = poseStampedPtr2isometry(odom_msg);
-
+      const ros::Time &stamp       = keyframe_msg.header.stamp;
+      Eigen::Isometry3d odom = pose2isometry(keyframe_msg.Pose);
+      
       // Get Point Cloud Data
-      pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
-      pcl::fromROSMsg(*cloud_msg, *cloud);
-      if (base_frame_id.empty())
-      {
-        base_frame_id = cloud_msg->header.frame_id;
-      }
+      pcl::PointCloud<PointC>::Ptr cloud(new pcl::PointCloud<PointC>());
+      pcl::fromROSMsg(keyframe_msg.PointCloud, *cloud);
+      
+      // Get Keyframe id and vehicle id
+      const int &keyframe_id       = keyframe_msg.id;
+      const int &vehicle_id        = keyframe_msg.vehicle_id;
 
       // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
       if (!keyframe_updater->update(odom)) 
@@ -220,21 +187,12 @@ namespace hdl_graph_slam
         return;
       }
 
+      // Create Keyframe object
       double accum_d = keyframe_updater->get_accum_distance();
-      KeyFrame::Ptr keyframe;
-      // New element of KeyFrame Leaves
-      // if(create_scan_ndt_)
-      // {
-      //   keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, leaf_voxel_size_, min_nr_));
-      //   if(debug_ndt_scan_marker_pub.getNumSubscribers() || debug_ndt_scan_arrow_marker_pub.getNumSubscribers())  // Debug
-      //     create_marker_array_ndt(keyframe);
-      // }
-      // else
-        keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud));  // 이부분을 
+      KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, keyframe_id, vehicle_id));
 
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
       keyframe_queue.push_back(keyframe); // 생성한 키프레임 객체를 큐에 넣기
-
     }
 
     /**
@@ -272,7 +230,7 @@ namespace hdl_graph_slam
         Eigen::Isometry3d odom = odom2map * keyframe->odom;
         keyframe->node = graph_slam->add_se3_node(odom); // Keyframe 객체를 생성할 때 노드에 대한 값이 비어 있음. 그걸 이때 채워넣는듯 그리고 그래프 안에도 넣어줌
         keyframe_hash[keyframe->stamp] = keyframe; // floor_queue에서 매칭되는 키프레임을 찾을 때 해쉬값을 사용해서 찾음
-
+        // 이부분 해쉬값을 다르게 해야할듯 키프레임의 포인터나...
         // fix the first node
         if (keyframes.empty() && new_keyframes.size() == 1)
         {
@@ -305,7 +263,7 @@ namespace hdl_graph_slam
         // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
 
         Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
-        Eigen::MatrixXd information = inf_calclator->calc_information_matrix(keyframe->cloud, prev_keyframe->cloud, relative_pose);
+        Eigen::MatrixXd information = inf_calclator->calc_information_matrix( keyframe->cloud_t, prev_keyframe->cloud_t, relative_pose);
         // 뭐 어떻게 해서 information matrix까지 구함 -> 나중에 읽어볼거
         auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, information);
         graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("odometry_edge_robust_kernel", "NONE"), private_nh.param<double>("odometry_edge_robust_kernel_size", 1.0));
@@ -323,311 +281,6 @@ namespace hdl_graph_slam
       // 아 3초에 한번씩 도니까 한번 싹 밀어 넣은 다음에 처리한건 다 지우는구나
       keyframe_queue.erase(keyframe_queue.begin(), keyframe_queue.begin() + num_processed + 1);
       return true;
-    }
-
-    void nmea_callback(const nmea_msgs::SentenceConstPtr &nmea_msg)
-    {
-      GPRMC grmc = nmea_parser->parse(nmea_msg->sentence);
-
-      if (grmc.status != 'A')
-      {
-        return;
-      }
-
-      geographic_msgs::GeoPointStampedPtr gps_msg(new geographic_msgs::GeoPointStamped());
-      gps_msg->header = nmea_msg->header;
-      gps_msg->position.latitude = grmc.latitude;
-      gps_msg->position.longitude = grmc.longitude;
-      gps_msg->position.altitude = NAN;
-
-      gps_callback(gps_msg);
-    }
-
-    void navsat_callback(const sensor_msgs::NavSatFixConstPtr &navsat_msg)
-    {
-      geographic_msgs::GeoPointStampedPtr gps_msg(new geographic_msgs::GeoPointStamped());
-      gps_msg->header = navsat_msg->header;
-      gps_msg->position.latitude = navsat_msg->latitude;
-      gps_msg->position.longitude = navsat_msg->longitude;
-      gps_msg->position.altitude = navsat_msg->altitude;
-      gps_callback(gps_msg);
-    }
-
-    /**
-     * @brief received gps data is added to #gps_queue
-     * @param gps_msg
-     */
-    void gps_callback(const geographic_msgs::GeoPointStampedPtr &gps_msg)
-    {
-      std::lock_guard<std::mutex> lock(gps_queue_mutex);
-      gps_msg->header.stamp += ros::Duration(gps_time_offset);
-      gps_queue.push_back(gps_msg);
-    }
-
-    /**
-     * @brief
-     * @return
-     */
-    bool flush_gps_queue()
-    {
-      std::lock_guard<std::mutex> lock(gps_queue_mutex);
-
-      if (keyframes.empty() || gps_queue.empty())
-      {
-        return false;
-      }
-
-      bool updated = false;
-      auto gps_cursor = gps_queue.begin();
-
-      for (auto &keyframe : keyframes)
-      {
-        if (keyframe->stamp > gps_queue.back()->header.stamp)
-        {
-          break;
-        }
-
-        if (keyframe->stamp < (*gps_cursor)->header.stamp || keyframe->utm_coord)
-        {
-          continue;
-        }
-
-        // find the gps data which is closest to the keyframe
-        auto closest_gps = gps_cursor;
-        for (auto gps = gps_cursor; gps != gps_queue.end(); gps++)
-        {
-          auto dt = ((*closest_gps)->header.stamp - keyframe->stamp).toSec();
-          auto dt2 = ((*gps)->header.stamp - keyframe->stamp).toSec();
-          if (std::abs(dt) < std::abs(dt2))
-          {
-            break;
-          }
-
-          closest_gps = gps;
-        }
-
-        // if the time residual between the gps and keyframe is too large, skip it
-        gps_cursor = closest_gps;
-        if (0.2 < std::abs(((*closest_gps)->header.stamp - keyframe->stamp).toSec()))
-        {
-          continue;
-        }
-
-        // convert (latitude, longitude, altitude) -> (easting, northing, altitude) in UTM coordinate
-        geodesy::UTMPoint utm;
-        geodesy::fromMsg((*closest_gps)->position, utm);
-        Eigen::Vector3d xyz(utm.easting, utm.northing, utm.altitude);
-
-        // the first gps data position will be the origin of the map
-        if (!zero_utm)
-        {
-          zero_utm = xyz;
-        }
-        xyz -= (*zero_utm);
-
-        keyframe->utm_coord = xyz;
-
-        g2o::OptimizableGraph::Edge *edge;
-        if (std::isnan(xyz.z()))
-        {
-          Eigen::Matrix2d information_matrix = Eigen::Matrix2d::Identity() / gps_edge_stddev_xy;
-          edge = graph_slam->add_se3_prior_xy_edge(keyframe->node, xyz.head<2>(), information_matrix);
-        }
-        else
-        {
-          Eigen::Matrix3d information_matrix = Eigen::Matrix3d::Identity();
-          information_matrix.block<2, 2>(0, 0) /= gps_edge_stddev_xy;
-          information_matrix(2, 2) /= gps_edge_stddev_z;
-          edge = graph_slam->add_se3_prior_xyz_edge(keyframe->node, xyz, information_matrix);
-        }
-        graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("gps_edge_robust_kernel", "NONE"), private_nh.param<double>("gps_edge_robust_kernel_size", 1.0));
-
-        updated = true;
-      }
-
-      auto remove_loc = std::upper_bound(gps_queue.begin(), gps_queue.end(), keyframes.back()->stamp, [=](const ros::Time &stamp, const geographic_msgs::GeoPointStampedConstPtr &geopoint)
-                                         { return stamp < geopoint->header.stamp; });
-      gps_queue.erase(gps_queue.begin(), remove_loc);
-      return updated;
-    }
-
-    void imu_callback(const sensor_msgs::ImuPtr &imu_msg)
-    {
-      if (!enable_imu_orientation && !enable_imu_acceleration)
-      {
-        return;
-      }
-
-      std::lock_guard<std::mutex> lock(imu_queue_mutex);
-      imu_msg->header.stamp += ros::Duration(imu_time_offset);
-      imu_queue.push_back(imu_msg);
-    }
-
-    bool flush_imu_queue()
-    {
-      std::lock_guard<std::mutex> lock(imu_queue_mutex);
-      if (keyframes.empty() || imu_queue.empty() || base_frame_id.empty())
-      {
-        return false;
-      }
-
-      bool updated = false;
-      auto imu_cursor = imu_queue.begin();
-
-      for (auto &keyframe : keyframes)
-      {
-        if (keyframe->stamp > imu_queue.back()->header.stamp)
-        {
-          break;
-        }
-
-        if (keyframe->stamp < (*imu_cursor)->header.stamp || keyframe->acceleration)
-        {
-          continue;
-        }
-
-        // find imu data which is closest to the keyframe
-        auto closest_imu = imu_cursor;
-        for (auto imu = imu_cursor; imu != imu_queue.end(); imu++)
-        {
-          auto dt = ((*closest_imu)->header.stamp - keyframe->stamp).toSec();
-          auto dt2 = ((*imu)->header.stamp - keyframe->stamp).toSec();
-          if (std::abs(dt) < std::abs(dt2))
-          {
-            break;
-          }
-
-          closest_imu = imu;
-        }
-
-        imu_cursor = closest_imu;
-        if (0.2 < std::abs(((*closest_imu)->header.stamp - keyframe->stamp).toSec()))
-        {
-          continue;
-        }
-
-        const auto &imu_ori = (*closest_imu)->orientation;
-        const auto &imu_acc = (*closest_imu)->linear_acceleration;
-
-        geometry_msgs::Vector3Stamped acc_imu;
-        geometry_msgs::Vector3Stamped acc_base;
-        geometry_msgs::QuaternionStamped quat_imu;
-        geometry_msgs::QuaternionStamped quat_base;
-
-        quat_imu.header.frame_id = acc_imu.header.frame_id = (*closest_imu)->header.frame_id;
-        quat_imu.header.stamp = acc_imu.header.stamp = ros::Time(0);
-        acc_imu.vector = (*closest_imu)->linear_acceleration;
-        quat_imu.quaternion = (*closest_imu)->orientation;
-
-        try
-        {
-          tf_listener.transformVector(base_frame_id, acc_imu, acc_base);
-          tf_listener.transformQuaternion(base_frame_id, quat_imu, quat_base);
-        }
-        catch (std::exception &e)
-        {
-          std::cerr << "failed to find transform!!" << std::endl;
-          return false;
-        }
-
-        keyframe->acceleration = Eigen::Vector3d(acc_base.vector.x, acc_base.vector.y, acc_base.vector.z);
-        keyframe->orientation = Eigen::Quaterniond(quat_base.quaternion.w, quat_base.quaternion.x, quat_base.quaternion.y, quat_base.quaternion.z);
-        keyframe->orientation = keyframe->orientation;
-        if (keyframe->orientation->w() < 0.0)
-        {
-          keyframe->orientation->coeffs() = -keyframe->orientation->coeffs();
-        }
-
-        if (enable_imu_orientation)
-        {
-          Eigen::MatrixXd info = Eigen::MatrixXd::Identity(3, 3) / imu_orientation_edge_stddev;
-          auto edge = graph_slam->add_se3_prior_quat_edge(keyframe->node, *keyframe->orientation, info);
-          graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("imu_orientation_edge_robust_kernel", "NONE"), private_nh.param<double>("imu_orientation_edge_robust_kernel_size", 1.0));
-        }
-
-        if (enable_imu_acceleration)
-        {
-          Eigen::MatrixXd info = Eigen::MatrixXd::Identity(3, 3) / imu_acceleration_edge_stddev;
-          g2o::OptimizableGraph::Edge *edge = graph_slam->add_se3_prior_vec_edge(keyframe->node, -Eigen::Vector3d::UnitZ(), *keyframe->acceleration, info);
-          graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("imu_acceleration_edge_robust_kernel", "NONE"), private_nh.param<double>("imu_acceleration_edge_robust_kernel_size", 1.0));
-        }
-        updated = true;
-      }
-
-      auto remove_loc = std::upper_bound(imu_queue.begin(), imu_queue.end(), keyframes.back()->stamp, [=](const ros::Time &stamp, const sensor_msgs::ImuConstPtr &imu)
-                                         { return stamp < imu->header.stamp; });
-      imu_queue.erase(imu_queue.begin(), remove_loc);
-
-      return updated;
-    }
-
-    /**
-     * @brief received floor coefficients are added to #floor_coeffs_queue
-     * @param floor_coeffs_msg
-     */
-    void floor_coeffs_callback(const hdl_graph_slam::FloorCoeffsConstPtr &floor_coeffs_msg)
-    {
-      if (floor_coeffs_msg->coeffs.empty())
-      {
-        return;
-      }
-
-      std::lock_guard<std::mutex> lock(floor_coeffs_queue_mutex);
-      floor_coeffs_queue.push_back(floor_coeffs_msg);
-    }
-
-    /**
-     * @brief this methods associates floor coefficients messages with registered keyframes, and then adds the associated coeffs to the pose graph
-     * @return if true, at least one floor plane edge is added to the pose graph
-     */
-    bool flush_floor_queue()
-    {
-      std::lock_guard<std::mutex> lock(floor_coeffs_queue_mutex);
-
-      if (keyframes.empty())
-      {
-        return false;
-      }
-
-      const auto &latest_keyframe_stamp = keyframes.back()->stamp;
-
-      bool updated = false;
-      for (const auto &floor_coeffs : floor_coeffs_queue)
-      {
-        if (floor_coeffs->header.stamp > latest_keyframe_stamp)
-        {
-          break;
-        }
-
-        auto found = keyframe_hash.find(floor_coeffs->header.stamp);
-        if (found == keyframe_hash.end())
-        {
-          continue;
-        }
-
-        if (!floor_plane_node)
-        {
-          floor_plane_node = graph_slam->add_plane_node(Eigen::Vector4d(0.0, 0.0, 1.0, 0.0));
-          floor_plane_node->setFixed(true);
-        }
-
-        const auto &keyframe = found->second;
-
-        Eigen::Vector4d coeffs(floor_coeffs->coeffs[0], floor_coeffs->coeffs[1], floor_coeffs->coeffs[2], floor_coeffs->coeffs[3]);
-        Eigen::Matrix3d information = Eigen::Matrix3d::Identity() * (1.0 / floor_edge_stddev);
-        auto edge = graph_slam->add_se3_plane_edge(keyframe->node, floor_plane_node, coeffs, information);
-        graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("floor_edge_robust_kernel", "NONE"), private_nh.param<double>("floor_edge_robust_kernel_size", 1.0));
-
-        keyframe->floor_coeffs = coeffs;
-
-        updated = true;
-      }
-
-      auto remove_loc = std::upper_bound(floor_coeffs_queue.begin(), floor_coeffs_queue.end(), latest_keyframe_stamp, [=](const ros::Time &stamp, const hdl_graph_slam::FloorCoeffsConstPtr &coeffs)
-                                         { return stamp < coeffs->header.stamp; });
-      floor_coeffs_queue.erase(floor_coeffs_queue.begin(), remove_loc);
-
-      return updated;
     }
 
     /**
@@ -706,12 +359,6 @@ namespace hdl_graph_slam
         read_until_pub.publish(read_until);
         read_until.frame_id = "/filtered_points";
         read_until_pub.publish(read_until);
-      }
-
-
-      // 어떠한 키프레임과 큐도 업데이트가 되지 않은 경우 그냥 return
-      if (!keyframe_updated & !flush_floor_queue() & !flush_gps_queue() & !flush_imu_queue())
-      {
         return;
       }
 
@@ -721,7 +368,7 @@ namespace hdl_graph_slam
       for (const auto &loop : loops)
       {
         Eigen::Isometry3d relpose(loop->relative_pose.cast<double>());
-        Eigen::MatrixXd information_matrix = inf_calclator->calc_information_matrix(loop->key1->cloud, loop->key2->cloud, relpose);
+        Eigen::MatrixXd information_matrix = inf_calclator->calc_information_matrix(loop->key1->cloud_t, loop->key2->cloud_t, relpose);
         auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix); // 여기서 에러 나는 거 같은디
         
         graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("loop_closure_edge_robust_kernel", "NONE"), private_nh.param<double>("loop_closure_edge_robust_kernel_size", 1.0));
@@ -791,7 +438,7 @@ namespace hdl_graph_slam
      */
     void debug_loop_closure_points_pose(Loop::Ptr loop)
     {
-      pcl::PointCloud<PointT>::Ptr aligned_cloud;
+      pcl::PointCloud<pcl::PointXYZI>::Ptr aligned_cloud;
       Eigen::Matrix4f final_transformation;
       loop_detector->getAlignedCloudWithFianlTF(aligned_cloud, final_transformation);
       std::cout <<"aligned PCD Size: " << aligned_cloud->size() << std::endl;
@@ -861,7 +508,7 @@ namespace hdl_graph_slam
 
       // Target PointCloud
       sensor_msgs::PointCloud2Ptr cloud_msg_target(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*loop->key1->cloud, *cloud_msg_target);
+      pcl::toROSMsg(*loop->key1->cloud_c, *cloud_msg_target);
       if(use_submap_loop_)
         cloud_msg_target->header.frame_id = "map";
       else
@@ -870,7 +517,7 @@ namespace hdl_graph_slam
       debug_loop_closer_target_pub.publish(cloud_msg_target);
       // Source PointCloud
       sensor_msgs::PointCloud2Ptr cloud_msg_source(new sensor_msgs::PointCloud2());
-      pcl::toROSMsg(*loop->key2->cloud, *cloud_msg_source);
+      pcl::toROSMsg(*loop->key2->cloud_c, *cloud_msg_source);
       cloud_msg_source->header.frame_id = "debug_loop_closure_source_pose";
       cloud_msg_source->header.stamp = ros::Time::now();
       debug_loop_closer_source_pub.publish(cloud_msg_source);
@@ -897,15 +544,6 @@ namespace hdl_graph_slam
       traj_marker.pose.orientation.w = 1.0;
       traj_marker.scale.x = traj_marker.scale.y = traj_marker.scale.z = 0.25;
 
-      // As I don't use imu data, I don't need to visualize it.
-      // visualization_msgs::Marker &imu_marker = markers.markers[1];
-      // imu_marker.header = traj_marker.header;
-      // imu_marker.ns = "imu";
-      // imu_marker.id = 1;
-      // imu_marker.type = visualization_msgs::Marker::SPHERE_LIST;
-
-      // imu_marker.pose.orientation.w = 1.0;
-      // imu_marker.scale.x = imu_marker.scale.y = imu_marker.scale.z = 0.75;
 
       traj_marker.points.resize(keyframes.size());
       traj_marker.colors.resize(keyframes.size());
@@ -922,23 +560,6 @@ namespace hdl_graph_slam
         traj_marker.colors[i].b = 0.0;
         traj_marker.colors[i].a = 1.0;
 
-        if (keyframes[i]->acceleration)
-        {
-          Eigen::Vector3d pos = keyframes[i]->node->estimate().translation();
-          geometry_msgs::Point point;
-          point.x = pos.x();
-          point.y = pos.y();
-          point.z = pos.z();
-
-          std_msgs::ColorRGBA color;
-          color.r = 0.0;
-          color.g = 0.0;
-          color.b = 1.0;
-          color.a = 0.1;
-
-          // imu_marker.points.push_back(point);
-          // imu_marker.colors.push_back(color);
-        }
       }
 
       // edge markers
@@ -988,28 +609,6 @@ namespace hdl_graph_slam
             edge_marker.points[i * 2].z += 0.5;
             edge_marker.points[i * 2 + 1].z += 0.5;
           }
-
-          continue;
-        }
-
-        g2o::EdgeSE3Plane *edge_plane = dynamic_cast<g2o::EdgeSE3Plane *>(edge);
-        if (edge_plane)
-        {
-          g2o::VertexSE3 *v1 = dynamic_cast<g2o::VertexSE3 *>(edge_plane->vertices()[0]);
-          Eigen::Vector3d pt1 = v1->estimate().translation();
-          Eigen::Vector3d pt2(pt1.x(), pt1.y(), 0.0);
-
-          edge_marker.points[i * 2].x = pt1.x();
-          edge_marker.points[i * 2].y = pt1.y();
-          edge_marker.points[i * 2].z = pt1.z();
-          edge_marker.points[i * 2 + 1].x = pt2.x();
-          edge_marker.points[i * 2 + 1].y = pt2.y();
-          edge_marker.points[i * 2 + 1].z = pt2.z();
-
-          edge_marker.colors[i * 2].b = 1.0;
-          edge_marker.colors[i * 2].a = 1.0;
-          edge_marker.colors[i * 2 + 1].b = 1.0;
-          edge_marker.colors[i * 2 + 1].a = 1.0;
 
           continue;
         }
@@ -1098,8 +697,8 @@ namespace hdl_graph_slam
         visualization_msgs::Marker marker_arrow;
         marker.header.frame_id = "base_link";
         marker_arrow.header.frame_id = "base_link";
-        marker.header.stamp = ros::Time(keyframe->cloud->header.stamp/1000000, (keyframe->cloud->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
-        marker_arrow.header.stamp = ros::Time(keyframe->cloud->header.stamp/1000000, (keyframe->cloud->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
+        marker.header.stamp = ros::Time(keyframe->cloud_t->header.stamp/1000000, (keyframe->cloud_t->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
+        marker_arrow.header.stamp = ros::Time(keyframe->cloud_t->header.stamp/1000000, (keyframe->cloud_t->header.stamp%1000000) * 1000); // pcl timestamp to ros timestamp
         marker.ns = "ndt_map_scan";
         marker_arrow.ns = "ndt_map_scan";
         
@@ -1433,12 +1032,6 @@ namespace hdl_graph_slam
         keyframes[i]->save(sst.str());
       }
 
-      if (zero_utm)
-      {
-        std::ofstream zero_utm_ofs(directory + "/zero_utm");
-        zero_utm_ofs << boost::format("%.6f %.6f %.6f") % zero_utm->x() % zero_utm->y() % zero_utm->z() << std::endl;
-      }
-
       std::ofstream ofs(directory + "/special_nodes.csv");
       ofs << "anchor_node " << (anchor_node == nullptr ? -1 : anchor_node->id()) << std::endl;
       ofs << "anchor_edge " << (anchor_edge == nullptr ? -1 : anchor_edge->id()) << std::endl;
@@ -1469,22 +1062,8 @@ namespace hdl_graph_slam
         return true;
       }
 
-      if (zero_utm && req.utm)
-      {
-        for (auto &pt : cloud->points)
-        {
-          pt.getVector3fMap() += (*zero_utm).cast<float>();
-        }
-      }
-
       cloud->header.frame_id = map_frame_id;
       cloud->header.stamp = snapshot.back()->cloud->header.stamp;
-
-      if (zero_utm)
-      {
-        std::ofstream ofs(req.destination + ".utm");
-        ofs << boost::format("%.6f %.6f %.6f") % zero_utm->x() % zero_utm->y() % zero_utm->z() << std::endl;
-      }
 
       int ret = pcl::io::savePCDFileBinary(req.destination, *cloud);
       res.success = ret == 0;
@@ -1524,26 +1103,19 @@ namespace hdl_graph_slam
     ros::WallTimer map_publish_timer;
     ros::WallTimer ndt_map_publish_timer;
 
-    std::unique_ptr<message_filters::Subscriber<geometry_msgs::PoseStamped>> odom_sub;
-    std::unique_ptr<message_filters::Subscriber<sensor_msgs::PointCloud2>> cloud_sub;
-    std::unique_ptr<message_filters::Synchronizer<ApproxSyncPolicy>> sync;
-
-    ros::Subscriber gps_sub;
-    ros::Subscriber nmea_sub;
-    ros::Subscriber navsat_sub;
-
-    ros::Subscriber imu_sub;
-    ros::Subscriber floor_sub;
-
     ros::Publisher markers_pub;
 
     std::string published_odom_topic;
     std::string map_frame_id;
     std::string odom_frame_id;
 
+    // Odom2map gap transform
     std::mutex trans_odom2map_mutex;
     Eigen::Matrix4f trans_odom2map;
     ros::Publisher odom2map_pub;
+
+    ros::Subscriber keyframe_sub_;
+    ros::ServiceClient updated_keyframe_client_;
 
     std::string points_topic;
     ros::Publisher read_until_pub;
@@ -1559,28 +1131,6 @@ namespace hdl_graph_slam
     std::string base_frame_id;
     std::mutex keyframe_queue_mutex;
     std::deque<KeyFrame::Ptr> keyframe_queue;
-
-    // gps queue
-    double gps_time_offset;
-    double gps_edge_stddev_xy;
-    double gps_edge_stddev_z;
-    boost::optional<Eigen::Vector3d> zero_utm;
-    std::mutex gps_queue_mutex;
-    std::deque<geographic_msgs::GeoPointStampedConstPtr> gps_queue;
-
-    // imu queue
-    double imu_time_offset;
-    bool enable_imu_orientation;
-    double imu_orientation_edge_stddev;
-    bool enable_imu_acceleration;
-    double imu_acceleration_edge_stddev;
-    std::mutex imu_queue_mutex;
-    std::deque<sensor_msgs::ImuConstPtr> imu_queue;
-
-    // floor_coeffs queue
-    double floor_edge_stddev;
-    std::mutex floor_coeffs_queue_mutex;
-    std::deque<hdl_graph_slam::FloorCoeffsConstPtr> floor_coeffs_queue;
 
     // for map cloud generation
     std::atomic_bool graph_updated;
@@ -1605,11 +1155,10 @@ namespace hdl_graph_slam
     std::unique_ptr<GraphSLAM> graph_slam;
     std::unique_ptr<LoopDetector> loop_detector;
     std::unique_ptr<KeyframeUpdater> keyframe_updater;
-    std::unique_ptr<NmeaSentenceParser> nmea_parser;
 
     std::unique_ptr<InformationMatrixCalculator> inf_calclator;
-  };
-
+  
+  }; // class HdlGraphSlamNodelet
 } // namespace hdl_graph_slam
 
 PLUGINLIB_EXPORT_CLASS(hdl_graph_slam::HdlGraphSlamNodelet, nodelet::Nodelet)

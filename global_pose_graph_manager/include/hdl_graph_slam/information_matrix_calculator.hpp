@@ -14,6 +14,7 @@ class InformationMatrixCalculator
 {
 public:
   using PointT = pcl::PointXYZI;
+  using PointC = pcl::PointXYZRGB;
 
   InformationMatrixCalculator() {}
   InformationMatrixCalculator(ros::NodeHandle& nh);

@@ -18,6 +18,7 @@ namespace hdl_graph_slam {
 class MapCloudGenerator {
 public:
   using PointT = pcl::PointXYZI;
+  using PointC = pcl::PointXYZRGB;
 
   MapCloudGenerator();
   ~MapCloudGenerator();
@@ -28,8 +29,9 @@ public:
    * @param resolution  resolution of generated map
    * @return generated map point cloud
    */
-  pcl::PointCloud<PointT>::Ptr generate(const std::vector<KeyFrameSnapshot::Ptr>& keyframes, double resolution) const;
-  pcl::PointCloud<PointT>::Ptr generate(const std::vector<KeyFrame::Ptr>& keyframes, double resolution) const;
+  pcl::PointCloud<PointC>::Ptr generate(const std::vector<KeyFrameSnapshot::Ptr>& keyframes, double resolution) const;
+  pcl::PointCloud<PointC>::Ptr generate(const std::vector<KeyFrame::Ptr>& keyframes, double resolution) const;
+  pcl::PointCloud<PointT>::Ptr generateXYZICloud(const std::vector<KeyFrame::Ptr>& keyframes, double resolution) const ;
 
 };
 
