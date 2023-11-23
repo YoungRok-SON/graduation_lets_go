@@ -34,6 +34,8 @@
 
     <param name="distance_near_thresh" value="0.1" />
     <param name="distance_far_thresh" value="4.0" />
+
+    <param name="num_vehicle" value="1" />
     <!-- Debug Features -->
 
     <!-- frame settings -->

@@ -26,6 +26,9 @@ InformationMatrixCalculator::~InformationMatrixCalculator() {}
 
 Eigen::MatrixXd InformationMatrixCalculator::calc_information_matrix(const pcl::PointCloud<PointT>::ConstPtr& cloud1, const pcl::PointCloud<PointT>::ConstPtr& cloud2, const Eigen::Isometry3d& relpose) const 
 {
+  // 이미 오도메트리로 취급되는 ORB_SLAM2 키프레임 정보는 로컬 맵 최적화를 통해 지역적 최적화가 되어 들어온 상태
+  // 기본 위치 추정 오차가 5cm 라면, 400의 값이 나옴. ( 표준편차의 역수를 사용하여 구성 )
+  // 번들 조정이 일어났다면 정보행렬을 기존 값보다 크게 설정 
   if(use_const_inf_matrix) 
   {
     Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);

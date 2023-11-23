@@ -30,6 +30,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <visualization_msgs/MarkerArray.h>
 #include "keyframe_msgs/keyframe.h"
+#include "keyframe_msgs/updatedKeyFrame.h"
 
 #include <hdl_graph_slam/SaveMap.h>
 #include <hdl_graph_slam/LoadGraph.h>
@@ -93,7 +94,6 @@ namespace hdl_graph_slam
       // node, edge 및 graph 관련 객체 초기화
       anchor_node = nullptr;
       anchor_edge = nullptr;
-      floor_plane_node = nullptr;
       graph_slam.reset(new GraphSLAM(private_nh.param<std::string>("g2o_solver_type", "lm_var")));
 
       // Graph SLAM Functionalities
@@ -104,12 +104,6 @@ namespace hdl_graph_slam
 
       points_topic = private_nh.param<std::string>("points_topic", "/velodyne_points");
 
-      // subscribers
-      // Subscriber about Keyframe_msgs 
-      // Service server for updatedKeyframe resquest
-
-
-      
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
       /* Debugging Publisher for Loop Closure */
@@ -120,6 +114,7 @@ namespace hdl_graph_slam
       debug_loop_closure_source_pose_pub = nh.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
 
       /* Publisher for Debugging  NDT Things */
+      // Maybe these topics can be changed to mt_nh
       debug_ndt_scan_arrow_marker_pub    = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan_arrow", 1, true);
       debug_ndt_scan_marker_pub          = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
       debug_ndt_map_marker_pub           = nh.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
@@ -134,6 +129,9 @@ namespace hdl_graph_slam
 
       // Keyframe Subscriber
       keyframe_sub_ = nh.subscribe("/orb_slam2_rgbd/keyframe", 16, &HdlGraphSlamNodelet::keyframe_callback, this);
+      // Service server for updatedKeyframe resquest -> callback function needs to be lock when keyframe's pose is updated.
+      updated_keyframe_client_ = mt_nh.advertiseService("orb_slam2_ros/updatedKeyframe", &HdlGraphSlamNodelet::updated_keyframe_callback, this);
+      num_vehicle_  = private_nh.param<int>("num_vehicle", 2);
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -153,6 +151,7 @@ namespace hdl_graph_slam
       double map_cloud_update_interval = private_nh.param<double>("map_cloud_update_interval", 10.0);
       optimization_timer = mt_nh.createWallTimer(ros::WallDuration(graph_update_interval), &HdlGraphSlamNodelet::optimization_timer_callback, this); //3초마다 한번씩 퍼블리쉬
       map_publish_timer = mt_nh.createWallTimer(ros::WallDuration(map_cloud_update_interval), &HdlGraphSlamNodelet::map_points_publish_timer_callback, this);
+      keyframe_queues.resize(num_vehicle_); // 기체 수만큼 큐를 벡터에 생성
     }
 
   private:
@@ -173,26 +172,28 @@ namespace hdl_graph_slam
 
       // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
       if (!keyframe_updater->update(odom)) 
-      {
-        std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
-        if (keyframe_queue.empty()) // keyframe_queue가 비어있다면
-        { // 이 read_untill 이라는 부분 뭔지 잘 모르겠음
-          std_msgs::Header read_until;
-          read_until.stamp = stamp + ros::Duration(10, 0);
-          read_until.frame_id = points_topic;
-          read_until_pub.publish(read_until);
-          read_until.frame_id = "/filtered_points";
-          read_until_pub.publish(read_until);
-        }
         return;
-      }
 
       // Create Keyframe object
       double accum_d = keyframe_updater->get_accum_distance();
       KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, keyframe_id, vehicle_id));
 
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
-      keyframe_queue.push_back(keyframe); // 생성한 키프레임 객체를 큐에 넣기
+      keyframe_queues[keyframe->vehicle_id].push_back(keyframe); // 생성한 키프레임 객체를 id에 맞는 큐에 넣기
+    }
+
+    bool updated_keyframe_callback(keyframe_msgs::updatedKeyFrame::Request &req, keyframe_msgs::updatedKeyFrame::Response &res)
+    {
+      std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
+      // Below code is needed to change to change keyframe pose.
+      // It is send to server as ORB_SLAM2 Bundle Adjustment has updated graph.
+      if (keyframe_queue.empty())
+      {
+        // res.updated_keyframe_id = -1;
+        return true;
+      }
+      // res.updated_keyframe_id = keyframe_queue.back()->id;
+      return false;
     }
 
     /**
@@ -228,9 +229,9 @@ namespace hdl_graph_slam
 
         // add pose node
         Eigen::Isometry3d odom = odom2map * keyframe->odom;
-        keyframe->node = graph_slam->add_se3_node(odom); // Keyframe 객체를 생성할 때 노드에 대한 값이 비어 있음. 그걸 이때 채워넣는듯 그리고 그래프 안에도 넣어줌
-        keyframe_hash[keyframe->stamp] = keyframe; // floor_queue에서 매칭되는 키프레임을 찾을 때 해쉬값을 사용해서 찾음
-        // 이부분 해쉬값을 다르게 해야할듯 키프레임의 포인터나...
+        // Keyframe 객체를 생성할 때 노드에 대한 값이 비어 있음. 그걸 이때 채워넣음. 그리고 그래프 안에도 넣어줌
+        keyframe->node = graph_slam->add_se3_node(odom); 
+        
         // fix the first node
         if (keyframes.empty() && new_keyframes.size() == 1)
         {
@@ -245,8 +246,8 @@ namespace hdl_graph_slam
               sst >> stddev;
               inf(i, i) = 1.0 / stddev;
             }
-
-            anchor_node = graph_slam->add_se3_node(Eigen::Isometry3d::Identity()); // 처음 노드
+            // 처음 노드
+            anchor_node = graph_slam->add_se3_node(Eigen::Isometry3d::Identity()); 
             anchor_node->setFixed(true);  // 고정
             anchor_edge = graph_slam->add_se3_edge(anchor_node, keyframe->node, Eigen::Isometry3d::Identity(), inf); // 앵커노드와 첫번째 키프레임 사이 에지를 지정
           }
@@ -257,28 +258,23 @@ namespace hdl_graph_slam
           continue; // 이 std::vector<KeyFrame::Ptr> 형태의 변수 용도가 뭔지? -> 키프레임들을 모아놓는 벡터
         }
 
+        /* --------------------------------------------------------------------------- */
+        /* 이 부분에 vehicle number와 관련해서 마지막 부분을 어떻게 이어줄 지 로직을 짜야함 */
         // add edge between consecutive keyframes
-        const auto &prev_keyframe = i == 0 ? keyframes.back() : keyframe_queue[i - 1];
-        // keyframe_queue는 어디선가 계속 초기화가 되나?
-        // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
+        const auto &prev_keyframe = i == 0 ? keyframes.back() : keyframe_queue[i - 1]; // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
+        /* --------------------------------------------------------------------------- */
 
+        // 연결된 두 포즈 사이의 상대 포즈를 계산
         Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
-        Eigen::MatrixXd information = inf_calclator->calc_information_matrix( keyframe->cloud_t, prev_keyframe->cloud_t, relative_pose);
-        // 뭐 어떻게 해서 information matrix까지 구함 -> 나중에 읽어볼거
+        // 연결된 두 포주 사이의 정보 행렬 계산 -> 고정된 값으로 진행(ORB), 조금 더 큰 값(NDT), 아루코마커 위치 정보에 대한 정보 행렬도 지정해서 그냥 사용
+        Eigen::MatrixXd   information   = inf_calclator->calc_information_matrix( keyframe->cloud_t, prev_keyframe->cloud_t, relative_pose);
+        // 연결된 두 포즈 사이의 에지를 추가
         auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, information);
+        // Robust Kernel 추가
         graph_slam->add_robust_kernel(edge, private_nh.param<std::string>("odometry_edge_robust_kernel", "NONE"), private_nh.param<double>("odometry_edge_robust_kernel_size", 1.0));
-        // 이건 또 뭘까
       }
 
-      std_msgs::Header read_until;
-      read_until.stamp = keyframe_queue[num_processed]->stamp + ros::Duration(10, 0);
-      read_until.frame_id = points_topic;
-      read_until_pub.publish(read_until);
-      read_until.frame_id = "/filtered_points";
-      read_until_pub.publish(read_until);
-
-
-      // 아 3초에 한번씩 도니까 한번 싹 밀어 넣은 다음에 처리한건 다 지우는구나
+      // 3초에 한번씩 도니까 한번 싹 밀어 넣은 다음에 처리한건 다 지움
       keyframe_queue.erase(keyframe_queue.begin(), keyframe_queue.begin() + num_processed + 1);
       return true;
     }
@@ -348,21 +344,13 @@ namespace hdl_graph_slam
     {
       std::lock_guard<std::mutex> lock(main_thread_mutex);
 
-      // add keyframes and floor coeffs in the queues to the pose graph
-      bool keyframe_updated = flush_keyframe_queue();
+      // add keyframes in the queues to the pose graph
+      bool keyframe_updated = flush_keyframe_queue(); // for local optimization
 
       if (!keyframe_updated)
-      {
-        std_msgs::Header read_until;
-        read_until.stamp = ros::Time::now() + ros::Duration(30, 0);
-        read_until.frame_id = points_topic;
-        read_until_pub.publish(read_until);
-        read_until.frame_id = "/filtered_points";
-        read_until_pub.publish(read_until);
         return;
-      }
 
-      // loop detection
+      // loop detection ->
       std::vector<Loop::Ptr> loops = loop_detector->detect(keyframes, new_keyframes, *graph_slam);
       // 새로운 키프래임과 이전 키프레임 사이의 매칭 진행? -> N(기존 키프레임들) : M(새로운 키프레임들) 사이의 매칭을 진행해서 여러개가 나올 수 있음.
       for (const auto &loop : loops)
@@ -942,16 +930,10 @@ namespace hdl_graph_slam
             }
           }
         }
-        else if (token == "floor_node")
-        {
-          int id = 0;
-          ifs >> id;
-          floor_plane_node = static_cast<g2o::VertexPlane *>(graph_slam->graph->vertex(id));
-        }
       }
 
       // check if we have any non null special nodes, if all are null then lets not bother.
-      if (anchor_node->id() || anchor_edge->id() || floor_plane_node->id())
+      if (anchor_node->id() || anchor_edge->id() )
       {
         std::cout << "loaded special nodes - ";
 
@@ -964,10 +946,7 @@ namespace hdl_graph_slam
         {
           std::cout << " anchor_edge: " << anchor_edge->id();
         }
-        if (floor_plane_node->id())
-        {
-          std::cout << " floor_node: " << floor_plane_node->id();
-        }
+
 
         // finish with a new line
         std::cout << std::endl;
@@ -1035,7 +1014,6 @@ namespace hdl_graph_slam
       std::ofstream ofs(directory + "/special_nodes.csv");
       ofs << "anchor_node " << (anchor_node == nullptr ? -1 : anchor_node->id()) << std::endl;
       ofs << "anchor_edge " << (anchor_edge == nullptr ? -1 : anchor_edge->id()) << std::endl;
-      ofs << "floor_node " << (floor_plane_node == nullptr ? -1 : floor_plane_node->id()) << std::endl;
 
       res.success = true;
       return true;
@@ -1072,6 +1050,7 @@ namespace hdl_graph_slam
     }
 
   private:
+
     // Debug Variables
     ros::Publisher debug_loop_closer_aligned_pub;
     ros::Publisher debug_loop_closer_target_pub;
@@ -1084,7 +1063,6 @@ namespace hdl_graph_slam
     ros::Publisher debug_ndt_map_marker_pub;        // Whole Map ndt elipsoidal marker publisher
     tf2_ros::TransformBroadcaster debug_tf2_tf_broadcaster;
 
-
     // NDT Variables
     bool    create_scan_ndt_;
     bool    use_submap_loop_;
@@ -1094,7 +1072,6 @@ namespace hdl_graph_slam
     double  ndt_leaf_min_scale_;
     int     min_nr_;
   
-    
     // ROS
     ros::NodeHandle nh;
     ros::NodeHandle mt_nh;
@@ -1115,22 +1092,25 @@ namespace hdl_graph_slam
     ros::Publisher odom2map_pub;
 
     ros::Subscriber keyframe_sub_;
-    ros::ServiceClient updated_keyframe_client_;
+    ros::ServiceServer  updated_keyframe_client_;
+    // Number of Vehicles
+    unsigned int num_vehicle_;
 
     std::string points_topic;
     ros::Publisher read_until_pub;
     ros::Publisher map_points_pub;
 
-    tf::TransformListener tf_listener;
-
     ros::ServiceServer load_service_server;
     ros::ServiceServer dump_service_server;
     ros::ServiceServer save_map_service_server;
 
+    tf::TransformListener tf_listener;
+    
     // keyframe queue
     std::string base_frame_id;
     std::mutex keyframe_queue_mutex;
     std::deque<KeyFrame::Ptr> keyframe_queue;
+    std::vector<std::deque<KeyFrame::Ptr>> keyframe_queues;
 
     // for map cloud generation
     std::atomic_bool graph_updated;
@@ -1145,17 +1125,16 @@ namespace hdl_graph_slam
 
     int max_keyframes_per_update;
     std::deque<KeyFrame::Ptr> new_keyframes;
+    // Vector idx will be matched with vehicle, and deque will be matched with each vehicle's keyframe
+    std::vector<std::deque<KeyFrame::Ptr>> mvdKFs; 
 
     g2o::VertexSE3 *anchor_node;
     g2o::EdgeSE3 *anchor_edge;
-    g2o::VertexPlane *floor_plane_node;
     std::vector<KeyFrame::Ptr> keyframes;
-    std::unordered_map<ros::Time, KeyFrame::Ptr, RosTimeHash> keyframe_hash;
 
     std::unique_ptr<GraphSLAM> graph_slam;
     std::unique_ptr<LoopDetector> loop_detector;
     std::unique_ptr<KeyframeUpdater> keyframe_updater;
-
     std::unique_ptr<InformationMatrixCalculator> inf_calclator;
   
   }; // class HdlGraphSlamNodelet
