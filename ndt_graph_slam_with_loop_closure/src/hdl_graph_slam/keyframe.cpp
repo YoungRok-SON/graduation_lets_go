@@ -5,21 +5,24 @@
 #include <boost/filesystem.hpp>
 
 #include <pcl/io/pcd_io.h>
+#include <pcl/common/transforms.h>
+
 #include <g2o/core/sparse_optimizer.h>
 #include <g2o/types/slam3d/vertex_se3.h>
 
 namespace hdl_graph_slam
 {
-  typedef pcl::PointXYZRGB PointT;
+  typedef pcl::PointXYZRGB PointC;
+  typedef pcl::PointXYZI PointT;
 
 
   KeyFrame::KeyFrame( const ros::Time &stamp, const Eigen::Isometry3d &odom, 
                       double accum_distance, 
-                      const pcl::PointCloud<PointT>::ConstPtr &cloud) : 
+                      const pcl::PointCloud<PointT>::Ptr &cloud) : 
                       stamp(stamp),
                       odom(odom),
                       accum_distance(accum_distance), 
-                      cloud(cloud), 
+                      cloud_t(cloud), 
                       node(nullptr) 
   {
   }
@@ -27,13 +30,13 @@ namespace hdl_graph_slam
   KeyFrame::KeyFrame( const ros::Time &stamp,
                       const Eigen::Isometry3d &odom, 
                       double accum_distance, 
-                      const pcl::PointCloud<PointT>::ConstPtr &cloud,
+                      const pcl::PointCloud<PointT>::Ptr &cloud,
                       float leaf_size,
                       int min_nr) :
                       stamp(stamp),
                       odom(odom),
                       accum_distance(accum_distance),
-                      cloud(cloud), 
+                      cloud_t(cloud), 
                       node(nullptr),
                       leaf_size(leaf_size),
                       min_nr(min_nr)
@@ -45,7 +48,30 @@ namespace hdl_graph_slam
     leaves = generate_ndt_scan.getLeaves();
   }
 
-  KeyFrame::KeyFrame(const std::string &directory, g2o::HyperGraph *graph) : stamp(), odom(Eigen::Isometry3d::Identity()), accum_distance(-1), cloud(nullptr), node(nullptr)
+  KeyFrame::KeyFrame( const ros::Time &stamp, const Eigen::Isometry3d &odom,
+                      double accum_distance, const pcl::PointCloud<PointC>::Ptr &cloud,
+                      int keyframe_id, int vehicle_id)
+                      : stamp(stamp), odom(odom),
+                        accum_distance(accum_distance), cloud_c(nullptr),cloud_t(nullptr),
+                        node(nullptr), 
+                        keyframe_id(keyframe_id), vehicle_id(vehicle_id)
+  {
+      this->cloud_c = cloud;
+      // conver xyzrgb to xyzi
+      this->cloud_t->resize(cloud->size());
+      for (int i = 0; i < cloud->size(); i++)
+      {
+        pcl::PointXYZI dst_p;
+        dst_p.x = cloud->points[i].x;
+        dst_p.y = cloud->points[i].y;
+        dst_p.z = cloud->points[i].z;
+        dst_p.intensity = 0.0;
+        this->cloud_t->points[i] = dst_p;
+      }
+  }
+
+
+  KeyFrame::KeyFrame(const std::string &directory, g2o::HyperGraph *graph) : stamp(), odom(Eigen::Isometry3d::Identity()), accum_distance(-1), cloud_t(nullptr), node(nullptr)
   {
     load(directory, graph);
   }
@@ -70,32 +96,12 @@ namespace hdl_graph_slam
 
     ofs << "accum_distance " << accum_distance << "\n";
 
-    if (floor_coeffs)
-    {
-      ofs << "floor_coeffs " << floor_coeffs->transpose() << "\n";
-    }
-
-    if (utm_coord)
-    {
-      ofs << "utm_coord " << utm_coord->transpose() << "\n";
-    }
-
-    if (acceleration)
-    {
-      ofs << "acceleration " << acceleration->transpose() << "\n";
-    }
-
-    if (orientation)
-    {
-      ofs << "orientation " << orientation->w() << " " << orientation->x() << " " << orientation->y() << " " << orientation->z() << "\n";
-    }
-
     if (node)
     {
       ofs << "id " << node->id() << "\n";
     }
 
-    pcl::io::savePCDFileBinary(directory + "/cloud.pcd", *cloud);
+    pcl::io::savePCDFileBinary(directory + "/cloud.pcd", *cloud_c);
   }
 
 
@@ -158,30 +164,6 @@ namespace hdl_graph_slam
       {
         ifs >> accum_distance;
       }
-      else if (token == "floor_coeffs")
-      {
-        Eigen::Vector4d coeffs;
-        ifs >> coeffs[0] >> coeffs[1] >> coeffs[2] >> coeffs[3];
-        floor_coeffs = coeffs;
-      }
-      else if (token == "utm_coord")
-      {
-        Eigen::Vector3d coord;
-        ifs >> coord[0] >> coord[1] >> coord[2];
-        utm_coord = coord;
-      }
-      else if (token == "acceleration")
-      {
-        Eigen::Vector3d acc;
-        ifs >> acc[0] >> acc[1] >> acc[2];
-        acceleration = acc;
-      }
-      else if (token == "orientation")
-      {
-        Eigen::Quaterniond quat;
-        ifs >> quat.w() >> quat.x() >> quat.y() >> quat.z();
-        orientation = quat;
-      }
       else if (token == "id")
       {
         ifs >> node_id;
@@ -215,7 +197,7 @@ namespace hdl_graph_slam
 
     pcl::PointCloud<PointT>::Ptr cloud_(new pcl::PointCloud<PointT>());
     pcl::io::loadPCDFile(directory + "/cloud.pcd", *cloud_);
-    cloud = cloud_;
+    cloud_t = cloud_;
 
     return true;
   }
@@ -230,9 +212,9 @@ namespace hdl_graph_slam
     return node->estimate();
   }
 
-  KeyFrameSnapshot::KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointT>::ConstPtr &cloud) : pose(pose), cloud(cloud) {} // 들어온 값을 사용해서 초기화?
+  KeyFrameSnapshot::KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointC>::ConstPtr &cloud_c) : pose(pose), cloud(cloud_c) {} // 들어온 값을 사용해서 초기화?
 
-  KeyFrameSnapshot::KeyFrameSnapshot(const KeyFrame::Ptr &key) : pose(key->node->estimate()), cloud(key->cloud),leaves(key->leaves) {} // 최적화된 위치를 받아서 Pose를 초기화
+  KeyFrameSnapshot::KeyFrameSnapshot(const KeyFrame::Ptr &key) : pose(key->node->estimate()), cloud(key->cloud_c),leaves(key->leaves) {} // 최적화된 위치를 받아서 Pose를 초기화
 
   KeyFrameSnapshot::~KeyFrameSnapshot() {}
 

@@ -36,6 +36,7 @@ namespace hdl_graph_slam
   {
   public:
     typedef pcl::PointXYZI PointT;
+    typedef pcl::PointXYZRGB PointC;
 
     /**
      * @brief constructor
@@ -281,10 +282,10 @@ namespace hdl_graph_slam
       {
         ROS_INFO("Map Cloud Generation");
         // Generate Submap from keyframes
-        submap_cloud = map_cloud_generator_->generate(candidate_keyframes, map_cloud_resolution_); // 0.5는 resolution
-        registration->setInputTarget(submap_cloud); // 새롭게 들어온 키프레임을 기준으로
+        submap_cloud = map_cloud_generator_->generateXYZICloud(candidate_keyframes, map_cloud_resolution_); // 0.5는 resolution
+        registration->setInputTarget( submap_cloud ); // 새롭게 들어온 키프레임을 기준으로
         // Try Matching with Submap
-        registration->setInputSource(new_keyframe->cloud); // 매칭시킬 포인트 클라우드를 가져옴
+        registration->setInputSource( new_keyframe->cloud_t ); // 매칭시킬 포인트 클라우드를 가져옴
         Eigen::Isometry3d new_keyframe_estimate = new_keyframe->node->estimate(); // 타겟의 값 위치 값 가져옴
         new_keyframe_estimate.linear() = Eigen::Quaterniond(new_keyframe_estimate.linear()).normalized().toRotationMatrix();
         // Get Closest Keyframe Estimate
@@ -300,16 +301,22 @@ namespace hdl_graph_slam
           std::cout << "." << std::flush;
 
           best_score = registration->getFitnessScore(fitness_score_max_range);
-          best_matched = KeyFrame::Ptr(new KeyFrame(candidate_keyframes[target_keyframe_idx_]->stamp, candidate_keyframes[target_keyframe_idx_]->odom, candidate_keyframes[target_keyframe_idx_]->accum_distance, submap_cloud));
+          best_matched = KeyFrame::Ptr(new KeyFrame(candidate_keyframes[target_keyframe_idx_]->stamp, 
+                                                    candidate_keyframes[target_keyframe_idx_]->odom,
+                                                    candidate_keyframes[target_keyframe_idx_]->accum_distance, 
+                                                    submap_cloud,
+                                                    candidate_keyframes[target_keyframe_idx_]->keyframe_id,
+                                                    candidate_keyframes[target_keyframe_idx_] ->vehicle_id));
+
           best_matched->node = candidate_keyframes[target_keyframe_idx_]->node;
-          relative_pose =  candidate_estimate.matrix().cast<float>().inverse() * registration->getFinalTransformation();  // target to source
+          relative_pose =  candidate_estimate.matrix().cast<float>().inverse() * registration->getFinalTransformation();  // target to source 이거 잘 했는지 다시 확인
       }
       else
       {
         for (const auto &candidate : candidate_keyframes)
         {
-          registration->setInputTarget(candidate->cloud); // 새롭게 들어온 키프레임을 기준으로
-          registration->setInputSource(new_keyframe->cloud); // 매칭시킬 포인트 클라우드를 가져옴
+          registration->setInputTarget( candidate->cloud_t ); // 새롭게 들어온 키프레임을 기준으로
+          registration->setInputSource( new_keyframe->cloud_t ); // 매칭시킬 포인트 클라우드를 가져옴
           Eigen::Isometry3d new_keyframe_estimate = new_keyframe->node->estimate(); // 타겟의 값 위치 값 가져옴
           new_keyframe_estimate.linear() = Eigen::Quaterniond(new_keyframe_estimate.linear()).normalized().toRotationMatrix();
           Eigen::Isometry3d candidate_estimate = candidate->node->estimate();

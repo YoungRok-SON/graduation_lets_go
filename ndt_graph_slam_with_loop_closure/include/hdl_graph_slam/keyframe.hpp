@@ -39,14 +39,16 @@ namespace hdl_graph_slam
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     using PointT = pcl::PointXYZI;
+    using PointC = pcl::PointXYZRGB;
     using Ptr = std::shared_ptr<KeyFrame>;
     typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
     typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
     pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
 
 
-    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud);
-    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::ConstPtr &cloud, float leaf_size, int min_nr);
+    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::Ptr &cloud);
+    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointC>::Ptr &cloud, int keyframe_id, int vehicle_id);
+    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::Ptr &cloud, float leaf_size, int min_nr);
     KeyFrame(const std::string &directory, g2o::HyperGraph *graph);
     virtual ~KeyFrame();
 
@@ -60,12 +62,12 @@ namespace hdl_graph_slam
     ros::Time stamp;                               // timestamp
     Eigen::Isometry3d odom;                        // odometry (estimated by scan_matching_odometry)
     double accum_distance;                         // accumulated distance from the first node (by scan_matching_odometry)
-    pcl::PointCloud<PointT>::ConstPtr cloud;       // point cloud
-    boost::optional<Eigen::Vector4d> floor_coeffs; // detected floor's coefficients
-    boost::optional<Eigen::Vector3d> utm_coord;    // UTM coord obtained by GPS
-
-    boost::optional<Eigen::Vector3d> acceleration;   //
-    boost::optional<Eigen::Quaterniond> orientation; //
+    pcl::PointCloud<PointC>::Ptr cloud_c;       // point cloud color
+    pcl::PointCloud<PointT>::Ptr cloud_t;       // point cloud intensity
+    
+    int keyframe_id;                                // keyframe id
+    int vehicle_id;                                 // vehicle id
+    // vertex 번호도 필요한가..? node에서 가져올 수 있지 않을까?
 
     g2o::VertexSE3 *node; // node instance
 
@@ -74,6 +76,9 @@ namespace hdl_graph_slam
     float   leaf_size;
     int     min_nr;
   };
+
+
+
 
   /**
    * @brief KeyFramesnapshot for map cloud generation
@@ -84,18 +89,19 @@ namespace hdl_graph_slam
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     using PointT = KeyFrame::PointT;
+    using PointC = KeyFrame::PointC;
     using Ptr = std::shared_ptr<KeyFrameSnapshot>;
     typedef pclomp::VoxelGridCovariance<PointT>::Leaf Leaf;
     typedef std::map<size_t, pclomp::VoxelGridCovariance<PointT>::Leaf> LeafMap;
 
     KeyFrameSnapshot(const KeyFrame::Ptr &key);
-    KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointT>::ConstPtr &cloud);
+    KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointC>::ConstPtr &cloud_c);
 
     ~KeyFrameSnapshot();
 
   public:
     Eigen::Isometry3d pose;                  // pose estimated by graph optimization
-    pcl::PointCloud<PointT>::ConstPtr cloud; // point cloud
+    pcl::PointCloud<PointC>::ConstPtr cloud; // point cloud
     // For new features
     LeafMap leaves;
   };
