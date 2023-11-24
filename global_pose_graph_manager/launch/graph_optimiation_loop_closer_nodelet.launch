@@ -4,6 +4,7 @@
   <!-- Set use_sim_time parameter when you use bag data.-->
   <param name="/use_sim_time" value="true"/>
 
+
   <!-- arguments -->
   <arg name="nodelet_manager" default="velodyne_nodelet_manager" />
   <arg name="enable_floor_detection" default="false" />
@@ -16,9 +17,11 @@
   <arg name="map_frame_id" default="map" />
   <arg name="lidar_odom_frame_id" default="odom" />
 
+  <!-- in case you use velodyne_driver, comment out the following line -->
+  <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen"/>
 
-  <!-- hdl_graph_slam_node -->
-  <node pkg="hdl_graph_slam" type="hdl_graph_slam_node" name="graph_optimiation_loop_closer" output="screen">
+  <!-- hdl_graph_slam_nodelet -->
+  <node pkg="nodelet" type="nodelet" name="hdl_graph_slam_nodelet" args="load hdl_graph_slam/HdlGraphSlamNodelet $(arg nodelet_manager)">
     <param name="points_topic"         value="$(arg points_topic)" />
     <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
@@ -108,9 +111,9 @@
 
   <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
 
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/graduate_ws/src/graduation_lets_go/global_pose_graph_manager/hdl_test.rviz"/>
+
   <node name="rosbag_player" pkg="rosbag" type="play" 
-    args="-q $(env HOME)/graduate_ws/keyframe_msgs.bag  --clock">
+    args="-q $(env HOME)/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag  --clock">
   </node>
 
 

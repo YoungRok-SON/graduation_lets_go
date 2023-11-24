@@ -101,7 +101,8 @@
         "compare": "cpp",
         "concepts": "cpp",
         "numbers": "cpp",
-        "stop_token": "cpp"
+        "stop_token": "cpp",
+        "dense": "cpp"
     },
     "ros.distro": "noetic",
     "C_Cpp.errorSquiggles": "disabled",

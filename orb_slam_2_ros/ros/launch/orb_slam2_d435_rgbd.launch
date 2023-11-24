@@ -66,7 +66,7 @@
 
 
   <node name="rosbag_player" pkg="rosbag" type="play" 
-    args="-q $(env HOME)/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag  --clock -r 0.4 -s 5.0">
+    args="-q $(env HOME)/graduate_ws/20231104-rgbdp-rsd455-EgineB-D.bag  --clock">
   </node>
 
 
