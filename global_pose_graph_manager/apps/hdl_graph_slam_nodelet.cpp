@@ -182,6 +182,7 @@ namespace hdl_graph_slam
       keyframe_queues[keyframe->vehicle_id].push_back(keyframe); // 생성한 키프레임 객체를 id에 맞는 큐에 넣기
     }
 
+    // To Do - update pose of all keyframe DB
     bool updated_keyframe_callback(keyframe_msgs::updatedKeyFrame::Request &req, keyframe_msgs::updatedKeyFrame::Response &res)
     {
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
@@ -204,11 +205,20 @@ namespace hdl_graph_slam
     {
       std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
 
-      // 키프레임큐가 비어있다면 그냥 리턴
-      if (keyframe_queue.empty())
+      // check whether the queue is empty
+      bool fully_empty = true;
+      for (int i = 0; i < keyframe_queues.size(); i++)
+      {
+        if (!keyframe_queues[i].empty())
+        {
+          fully_empty =  false;
+        }
+      }
+      if (fully_empty)
       {
         return false;
-      }
+      } // 그냥 이걸 하지 말고 아래 부분을 함수로 만들고 for문 안에 넣어서 처리하면 될듯?
+
 
       trans_odom2map_mutex.lock();
       Eigen::Isometry3d odom2map(trans_odom2map.cast<double>()); // trans_odom2map 변수 값을 double로 캐스팅해서 odom2map이라는 변수 생성
