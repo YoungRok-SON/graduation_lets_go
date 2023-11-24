@@ -187,8 +187,10 @@ void Node::PublishKeyFrameData()
 {
   // Get Keyframe if loop closure get a optimized pose.
   ORB_SLAM2::KeyFrame* pKF = orb_slam_->GetOptimizedKeyFrame();
-  if ( !pKF->isBad() && pKF != nullptr )
+  if ( pKF != nullptr )
   {
+    if ( pKF->isBad() )
+      return;
     keyframe_msgs::keyframe kf_msg;
     // Convert pose to std_msgs::Pose
      cv::Mat poseKF = pKF->GetPoseInverse();

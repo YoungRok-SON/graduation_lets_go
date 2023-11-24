@@ -96,8 +96,8 @@
     <param name="loop_closure_edge_robust_kernel" value="Huber" />
     <param name="loop_closure_edge_robust_kernel_size" value="1.0" />
     <param name="use_const_inf_matrix" value="false" />
-    <param name="const_stddev_x" value="0.5" />
-    <param name="const_stddev_q" value="0.1" />
+    <param name="const_stddev_x" value="0.05" />
+    <param name="const_stddev_q" value="0.01" />
     <param name="var_gain_a" value="20.0" />
     <param name="min_stddev_x" value="0.1" />
     <param name="max_stddev_x" value="5.0" />
@@ -110,6 +110,11 @@
   </node>
 
   <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
+
+
+  <node name="rosbag_player" pkg="rosbag" type="play" 
+    args="-q $(env HOME)/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag  --clock">
+  </node>
 
 
     <!-- optional arguments -->

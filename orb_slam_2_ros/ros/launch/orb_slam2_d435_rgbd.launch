@@ -6,7 +6,7 @@
   <!-- When Use a realsense node, comment below two tf -->
   <node pkg="tf2_manager" type="tf2_manager_node" name="tf2_manager_node" output="screen"/>
 
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/rviz_graduate.rviz"/>
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/graduate_ws/src/graduation_lets_go/rviz_graduate.rviz"/>
   
   
   <node name="orb_slam2_rgbd" pkg="orb_slam2_ros" type="orb_slam2_ros_rgbd" output="screen">
@@ -64,10 +64,18 @@
   </node>
 
 
-  <!-- rosbag -->
-    <node name="rosbag_player" pkg="rosbag" type="play" 
-        args="-q $(env HOME)/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag  --clock">
+
+  <node name="rosbag_player" pkg="rosbag" type="play" 
+    args="-q $(env HOME)/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag  --clock -r 0.4 -s 5.0">
   </node>
+
+
+
+  
+
+
+  <!-- rosbag -->
+
   <!-- <node name="rosbag_player" pkg="rosbag" type="play" 
         args="-q /home/acdlsim/rosbag_files/rgb_d_camera/20231104-rgbdp-rsd455-EgineB-D.bag -clock -r 0.4 -s 5.0">
   </node> -->

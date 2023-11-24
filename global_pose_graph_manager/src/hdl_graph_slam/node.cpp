@@ -60,10 +60,25 @@
 #include <pclomp/ndt_omp.h>
 #include <pclomp/voxel_grid_covariance_omp.h>
 
+
+int main(int argc, char const *argv[])
+{
+    ros::init(argc, argv, "global_pose_graph_manager");
+    ros::NodeHandle nh;
+    ros::NodeHandle mt_nh("~");
+
+
+
+
+
+    return 0;
+}
+
+
 namespace hdl_graph_slam
 {
 
-  class HdlGraphSlamNodelet : public nodelet::Nodelet
+  class HdlGraphSlamNodelet
   {
   public:
     typedef pcl::PointXYZI PointT;
