@@ -6,7 +6,8 @@ int main(int argc, char** argv)
   ros::init(argc, argv, "global_pose_graph_manager");
   ros::NodeHandle nh;
 
-  hdl_graph_slam::HdlGraphSlamNode hdl_graph_slam_node(nh);
+  hdl_graph_slam::HdlGraphSlamNode global_pose_graph_optimizer(nh);
+  global_pose_graph_optimizer.onInit();
 
   ros::spin();
 
@@ -21,116 +22,119 @@ namespace hdl_graph_slam
 
   HdlGraphSlamNode::HdlGraphSlamNode(ros::NodeHandle nh)
   {
-    nh_ = nh;
+    std::cout << "HdlGraphSlamNode Created." << std::endl;
+    this->nh_ = nh;
     request_pause = false;
-    optimization_thread = std::thread(&HdlGraphSlamNode::optimization_timer_callback, this);
-    map_publish_thread  = std::thread(&HdlGraphSlamNode::map_points_publish_timer_callback, this);
-
-    onInit();
   }
+
   HdlGraphSlamNode::~HdlGraphSlamNode()
   {
     // need to finish thread
         
     request_pause = true;
-    if (optimization_thread.joinable()) 
+    if (optimization_thread->joinable()) 
     {
-        optimization_thread.join();
+        optimization_thread->join();
     }
-    if (map_publish_thread.joinable()) 
+    if (map_publish_thread->joinable()) 
     {
-        map_publish_thread.join();
+        map_publish_thread->join();
     }
   }
 
   bool HdlGraphSlamNode::onInit()
+  {
+    std::cout << "HdlGraphSlamNode initializing...." << std::endl;
+    
+    // init parameters
+    map_frame_id = nh_.param<std::string>("global_pose_graph_manager/map_frame_id", "map");
+    odom_frame_id = nh_.param<std::string>("global_pose_graph_manager/odom_frame_id", "odom");
+    map_cloud_resolution = nh_.param<double>("global_pose_graph_manager/map_cloud_resolution", 0.1);
+    std::cout << "Map Cloud Resolution: " << map_cloud_resolution << std::endl;
+
+    // 한 업데이트(최적화)마다 최대로 최적화할 수 있는 키 프레임
+    // Q. 그럼 1번부터 10번까지 했으면 10번부터 19번까지 진행되는건가?
+    max_keyframes_per_update = nh_.param<int>("global_pose_graph_manager/max_keyframes_per_update", 10);
+
+    // node, edge 및 graph 관련 객체 초기화
+    anchor_node = nullptr;
+    anchor_edge = nullptr;
+    anchor_established = false;
+    graph_slam.reset(new GraphSLAM(nh_.param<std::string>("global_pose_graph_manager/g2o_solver_type", "lm_var")));
+
+    // Graph SLAM Functionalities
+    keyframe_updater.reset(new KeyframeUpdater(nh_));
+    loop_detector.reset(new LoopDetector(nh_)); // Loop Closure 클래스 객체 생성
+    map_cloud_generator.reset(new MapCloudGenerator());
+    inf_calclator.reset(new InformationMatrixCalculator(nh_));
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    /* Debugging Publisher for Loop Closure */
+    debug_loop_closer_aligned_pub      = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_aligned", 1, true);
+    debug_loop_closer_target_pub       = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
+    debug_loop_closer_source_pub       = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
+    debug_loop_closure_target_pose_pub = nh_.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
+    debug_loop_closure_source_pose_pub = nh_.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
+
+    /* Publisher for Debugging  NDT Things */
+    // Maybe these topics can be changed to nh_
+    debug_ndt_scan_arrow_marker_pub    = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan_arrow", 1, true);
+    debug_ndt_scan_marker_pub          = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
+    debug_ndt_map_marker_pub           = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
+    debug_loop_closure_sub_map_pub     = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/loop_closure_sub_map", 1, true);
+
+    /* Variables for NDT things */
+    leaf_voxel_size_    = nh_.param<double>("global_pose_graph_manager/leaf_voxel_size", 0.5);
+    create_scan_ndt_    = nh_.param<bool>("global_pose_graph_manager/create_scan_ndt", false);
+    min_nr_             = nh_.param<int>("global_pose_graph_manager/min_nr", 10);
+    ndt_leaf_min_scale_ = nh_.param<double>("global_pose_graph_manager/ndt_leaf_min_scale", 0.01);
+    use_submap_loop_    = nh_.param<bool>("global_pose_graph_manager/use_submap_loop", false);
+
+    // Keyframe Subscriber
+    keyframe_sub_ = nh_.subscribe("/orb_slam2_rgbd/keyframe", 64, &HdlGraphSlamNode::keyframe_callback, this);
+
+    // Service server for updatedKeyframe resquest -> callback function needs to be lock when keyframe's pose is updated.
+    updated_keyframe_client_ = nh_.advertiseService("orb_slam2_ros/updatedKeyframe", &HdlGraphSlamNode::updated_keyframe_callback, this);
+    num_vehicle_  = nh_.param<int>("global_pose_graph_manager/num_vehicle", 2);
+    std::cout << "Number of Vehicles: " << num_vehicle_ << std::endl;
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+    // Publishers
+    for (int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
     {
+      std::string odom2map_topic = "/hdl_graph_slam/odom2map_" + std::to_string(vehicle_num);
+      odom2map_pubs.push_back(nh_.advertise<geometry_msgs::TransformStamped>(odom2map_topic, 16));
 
-      // init parameters
-      // published_odom_topic = nh_.param<std::string>("published_odom_topic", "/odom");
-      map_frame_id = nh_.param<std::string>("map_frame_id", "map");
-      odom_frame_id = nh_.param<std::string>("odom_frame_id", "odom");
-      map_cloud_resolution = nh_.param<double>("map_cloud_resolution", 0.05);
-
-      // 한 업데이트(최적화)마다 최대로 최적화할 수 있는 키 프레임
-      // Q. 그럼 1번부터 10번까지 했으면 10번부터 19번까지 진행되는건가?
-      max_keyframes_per_update = nh_.param<int>("max_keyframes_per_update", 10);
-
-      // node, edge 및 graph 관련 객체 초기화
-      anchor_node = nullptr;
-      anchor_edge = nullptr;
-      anchor_established = false;
-      graph_slam.reset(new GraphSLAM(nh_.param<std::string>("g2o_solver_type", "lm_var")));
-
-      // Graph SLAM Functionalities
-      keyframe_updater.reset(new KeyframeUpdater(nh_));
-      loop_detector.reset(new LoopDetector(nh_)); // Loop Closure 클래스 객체 생성
-      map_cloud_generator.reset(new MapCloudGenerator());
-      inf_calclator.reset(new InformationMatrixCalculator(nh_));
-
-      points_topic = nh_.param<std::string>("points_topic", "/velodyne_points");
-
-      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-      /* Debugging Publisher for Loop Closure */
-      debug_loop_closer_aligned_pub      = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_aligned", 1, true);
-      debug_loop_closer_target_pub       = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_target", 1, true);
-      debug_loop_closer_source_pub       = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/loop_closer_source", 1, true);
-      debug_loop_closure_target_pose_pub = nh_.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_target_pose", 1, true);
-      debug_loop_closure_source_pose_pub = nh_.advertise<geometry_msgs::PoseStamped>("/hdl_graph_slam/debug/loop_closure_source_pose", 1, true);
-
-      /* Publisher for Debugging  NDT Things */
-      // Maybe these topics can be changed to nh_
-      debug_ndt_scan_arrow_marker_pub    = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan_arrow", 1, true);
-      debug_ndt_scan_marker_pub          = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
-      debug_ndt_map_marker_pub           = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
-      debug_loop_closure_sub_map_pub     = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/loop_closure_sub_map", 1, true);
-
-      /* Variables for NDT things */
-      leaf_voxel_size_    = nh_.param<double>("leaf_voxel_size", 0.5);
-      create_scan_ndt_    = nh_.param<bool>("create_scan_ndt", false);
-      min_nr_             = nh_.param<int>("min_nr", 10);
-      ndt_leaf_min_scale_ = nh_.param<double>("ndt_leaf_min_scale", 0.01);
-      use_submap_loop_    = nh_.param<bool>("use_submap_loop", false);
-
-      // Keyframe Subscriber
-      keyframe_sub_ = nh_.subscribe("/orb_slam2_rgbd/keyframe", 64, &HdlGraphSlamNode::keyframe_callback, this);
-
-      // Service server for updatedKeyframe resquest -> callback function needs to be lock when keyframe's pose is updated.
-      updated_keyframe_client_ = nh_.advertiseService("orb_slam2_ros/updatedKeyframe", &HdlGraphSlamNode::updated_keyframe_callback, this);
-      num_vehicle_  = nh_.param<int>("num_vehicle", 2);
-      /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-      // Publishers
-      for (int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
-      {
-        std::string odom2map_topic = "/hdl_graph_slam/odom2map_" + std::to_string(vehicle_num);
-        odom2map_pubs.push_back(nh_.advertise<geometry_msgs::TransformStamped>(odom2map_topic, 16));
-
-        std::string map_points_topic = "/hdl_graph_slam/map_points_" + std::to_string(vehicle_num);
-        map_points_pubs.push_back(nh_.advertise<sensor_msgs::PointCloud2>(map_points_topic, 1, true));
-      }
-      markers_pub = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
-      
-      // load_service_server = nh_.advertiseService("/hdl_graph_slam/load", &HdlGraphSlamNode::load_service, this);
-      // dump_service_server = nh_.advertiseService("/hdl_graph_slam/dump", &HdlGraphSlamNode::dump_service, this);
-      save_map_service_server = nh_.advertiseService("/hdl_graph_slam/save_map", &HdlGraphSlamNode::save_map_service, this);
-
-      graph_updated = false;
-      graph_update_interval = nh_.param<double>("graph_update_interval", 3.0);
-      map_cloud_update_interval = nh_.param<double>("map_cloud_update_interval", 10.0);
-            
-      // init Keyframe Containers
-      keyframe_queues.resize(num_vehicle_); // 기체 수만큼 큐를 벡터에 생성
-      mvdKFs_new.resize(num_vehicle_);
-      mv_trans_odom2map.resize(num_vehicle_);
-      for (auto &odom2map_tf : mv_trans_odom2map)
-        odom2map_tf.setIdentity();
-      mvvKF_snapshots.resize(num_vehicle_);
-
-      return true;
+      std::string map_points_topic = "/hdl_graph_slam/map_points_" + std::to_string(vehicle_num);
+      map_points_pubs.push_back(nh_.advertise<sensor_msgs::PointCloud2>(map_points_topic, 1, true));
     }
+    markers_pub = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/markers", 16);
+    
+    // load_service_server = nh_.advertiseService("/hdl_graph_slam/load", &HdlGraphSlamNode::load_service, this);
+    // dump_service_server = nh_.advertiseService("/hdl_graph_slam/dump", &HdlGraphSlamNode::dump_service, this);
+    save_map_service_server = nh_.advertiseService("/hdl_graph_slam/save_map", &HdlGraphSlamNode::save_map_service, this);
+
+    graph_updated = false;
+    graph_update_interval = nh_.param<double>("global_pose_graph_manager/graph_update_interval", 3.0);
+    map_cloud_update_interval = nh_.param<double>("global_pose_graph_manager/map_cloud_update_interval", 10.0);
+          
+    // init Keyframe Containers
+    keyframe_queues.resize(num_vehicle_); // 기체 수만큼 큐를 벡터에 생성
+    mvdKFs_new.resize(num_vehicle_);
+    mv_trans_odom2map.resize(num_vehicle_);
+    for (auto &odom2map_tf : mv_trans_odom2map)
+      odom2map_tf.setIdentity();
+    mvvKF_snapshots.resize(num_vehicle_);
+
+    optimization_thread =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::optimization_timer_callback, this);
+    map_publish_thread  =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::map_points_publish_timer_callback, this);
+    
+    std::cout << "HdlGraphSlamNode Initialization Done." << std::endl;
+
+    return true;
+  }
 
   void HdlGraphSlamNode::keyframe_callback(const keyframe_msgs::keyframe &keyframe_msg)
   {
@@ -176,16 +180,22 @@ namespace hdl_graph_slam
 
   void HdlGraphSlamNode::map_points_publish_timer_callback()
   {
-    while(!request_pause)
+    while(1)
     {
+      if(request_pause)
+        break;
+
+      std::this_thread::sleep_for( std::chrono::seconds(1) );
+
+      std::cout << "Map Point Publish Thread is Running...\n " << std::flush;
       for (int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
       {
         if ( !map_points_pubs[vehicle_num].getNumSubscribers() || !graph_updated )
         {
-          return;
+          continue;
         }
         
-        std::cout << "Generate Map Cloud Vehicle Number: " + std::to_string(vehicle_num)  << std::endl;
+        std::cout << "Generate Map Cloud Vehicle Number: " + std::to_string(vehicle_num)  << "\n"<< std::endl;
         std::vector<KeyFrameSnapshot::Ptr> snapshot;
 
         keyframes_snapshot_mutex.lock();
@@ -196,65 +206,46 @@ namespace hdl_graph_slam
 
         if (!cloud)
         {
-          return;
+          continue;;
         }
 
         cloud->header.frame_id = map_frame_id;
         cloud->header.stamp = snapshot.back()->cloud->header.stamp;
 
         ROS_INFO("Map Size: %ld", cloud->size());
-        
-        /* To Do : 전체 맵을 다 볼 수 있는 기능 넣기
-        To Do : subscribe하는 경우에만 만들기
-        To Do : Topic명 스캔, 서브맵, 전체맵에 대해 변수명 잘 구별해주기
-
-        NDT Leaf Visualization
-        if(debug_ndt_map_marker_pub)
-        {
-          ROS_INFO("Generate NDT Leaves");
-          // Voxel Grid Covariance
-          // 요놈이 문제 -> 이 필터에 들어가기 전까지는 cloud도 정상적인데 
-          pclomp::VoxelGridCovariance<PointT> generate_ndt_scan;
-          generate_ndt_scan.setInputCloud(cloud);
-          generate_ndt_scan.setLeafSize(leaf_voxel_size_, leaf_voxel_size_, leaf_voxel_size_);
-          generate_ndt_scan.setMinPointPerVoxel(10);
-          generate_ndt_scan.filter();
-          LeafMap leaves = generate_ndt_scan.getLeaves();
-          ROS_INFO("NDT Map Size: %ld", leaves.size());
-          // create_maker_array_ndt_whole_map() 넣기
-          create_marker_array_ndt(cloud, leaves);
-          ROS_INFO("Marker Publish Done");
-        } */
 
         sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2()); 
         pcl::toROSMsg(*cloud, *cloud_msg);  // 실행하면 cloud가 비워짐.
         map_points_pubs[vehicle_num].publish(cloud_msg);
       }
 
-      
-      std::this_thread::sleep_for( std::chrono::seconds(map_cloud_update_interval) );
-
+      std::cout << "Map Point Publish Thread Done. Wating a time... \n" << std::endl;
     }
   }
 
   void HdlGraphSlamNode::optimization_timer_callback()
   {
-    
-    while(!request_pause)
+    while(1)
     {
-      std::lock_guard<std::mutex> lock(main_thread_mutex);
+      if(request_pause)
+        break;
+      std::this_thread::sleep_for( std::chrono::seconds(1) );
 
+      std::cout << "Optization Thread Running... \n" << std::flush;
+      std::lock_guard<std::mutex> lock(main_thread_mutex);
       // add keyframes in the queues to the pose graph
       bool keyframe_updated = flush_keyframe_queue(); // for local optimization
+      std::cout << "keyframe Updated: " << keyframe_updated << "\n" << std::flush;
 
       if (!keyframe_updated)
-        return;
+        continue;
 
       // loop detection 
       // To Do 
       // Detect Loop Closing in case of multi-vehicle
       // 1. N:N Matching 
       // 2. N:M Matching
+      std::cout << "Loop Detection Started.\n" << std::flush;
       for (size_t vehicle_idx = 0; vehicle_idx < num_vehicle_; vehicle_idx++)
       {
         for (size_t target_vehicle_idx = 0; target_vehicle_idx < num_vehicle_; target_vehicle_idx++)
@@ -278,7 +269,7 @@ namespace hdl_graph_slam
         // new_keyframes의 모든 원소들이 keyframes의 끝에 추가
         mvdKFs_new[vehicle_idx].clear();
       }
-
+      std::cout << "Loop Detection Done " << keyframe_updated << std::flush;
       // optimize the pose graph
       int num_iterations = nh_.param<int>("g2o_solver_num_iterations", 1024);
       
@@ -286,6 +277,7 @@ namespace hdl_graph_slam
       graph_slam->optimize(num_iterations); // 지정한 회수만큼 최적화 진행
       graph_updated = true;
 
+      std::cout << "Graph Optimization Done. "  << "\n" << std::flush;
 
       // publish tf
       trans_odom2map_mutex.lock();
@@ -297,6 +289,7 @@ namespace hdl_graph_slam
       
       }
       trans_odom2map_mutex.unlock();
+      std::cout << " trans_odom2map Done " << "\n" << std::flush;
 
       // 벡터인 Keyframes에 있는 객체들을 복사해서 snapshot이라는 벡터 컨테이너에 KeyFrameSnapshot이라는 형태로 저장
       // 결국 새로운 키프래임들을 같이 하나의 맵 데이터로 저장
@@ -310,6 +303,7 @@ namespace hdl_graph_slam
         mvvKF_snapshots[vehicle_num].swap(snapshot);
         keyframes_snapshot_mutex.unlock();
       }
+      std::cout << " Keyframe Snapshot Done " << "\n" << std::flush;
 
       // publish odom and markers topics of all vehicles.
       for ( int vehicle_idx = 0; vehicle_idx < num_vehicle_; num_vehicle_++ )
@@ -325,7 +319,7 @@ namespace hdl_graph_slam
         auto markers = create_marker_array(ros::Time::now());
         markers_pub.publish(markers);
       }
-      std::this_thread::sleep_for( std::chrono::seconds(graph_update_interval) );
+      std::cout << "Optization Thread Done. Wating a time..." << std::flush;
     }
   }
 

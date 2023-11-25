@@ -22,8 +22,8 @@ public:
    */
   KeyframeUpdater(ros::NodeHandle& pnh) : is_first(true), prev_keypose(Eigen::Isometry3d::Identity()) 
   {
-    keyframe_delta_trans = pnh.param<double>("keyframe_delta_trans", 2.0);
-    keyframe_delta_angle = pnh.param<double>("keyframe_delta_angle", 2.0);
+    keyframe_delta_trans = pnh.param<double>("global_pose_graph_manager/keyframe_delta_trans", 2.0);
+    keyframe_delta_angle = pnh.param<double>("global_pose_graph_manager/keyframe_delta_angle", 2.0);
 
     accum_distance = 0.0;
   }

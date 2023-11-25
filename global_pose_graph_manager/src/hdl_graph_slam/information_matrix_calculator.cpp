@@ -10,16 +10,16 @@ namespace hdl_graph_slam {
 // Constructor
 InformationMatrixCalculator::InformationMatrixCalculator(ros::NodeHandle& nh) 
 {
-  use_const_inf_matrix = nh.param<bool>("use_const_inf_matrix", false);
-  const_stddev_x = nh.param<double>("const_stddev_x", 0.5);
-  const_stddev_q = nh.param<double>("const_stddev_q", 0.1);
+  use_const_inf_matrix = nh.param<bool>("global_pose_graph_manager/use_const_inf_matrix", false);
+  const_stddev_x = nh.param<double>("global_pose_graph_manager/const_stddev_x", 0.5);
+  const_stddev_q = nh.param<double>("global_pose_graph_manager/const_stddev_q", 0.1);
 
-  var_gain_a = nh.param<double>("var_gain_a", 20.0);
-  min_stddev_x = nh.param<double>("min_stddev_x", 0.1);
-  max_stddev_x = nh.param<double>("max_stddev_x", 5.0);
-  min_stddev_q = nh.param<double>("min_stddev_q", 0.05);
-  max_stddev_q = nh.param<double>("max_stddev_q", 0.2);
-  fitness_score_thresh = nh.param<double>("fitness_score_thresh", 0.5);
+  var_gain_a = nh.param<double>("global_pose_graph_manager/var_gain_a", 20.0);
+  min_stddev_x = nh.param<double>("global_pose_graph_manager/min_stddev_x", 0.1);
+  max_stddev_x = nh.param<double>("global_pose_graph_manager/max_stddev_x", 5.0);
+  min_stddev_q = nh.param<double>("global_pose_graph_manager/min_stddev_q", 0.05);
+  max_stddev_q = nh.param<double>("global_pose_graph_manager/max_stddev_q", 0.2);
+  fitness_score_thresh = nh.param<double>("global_pose_graph_manager/fitness_score_thresh", 0.5);
 }
 
 InformationMatrixCalculator::~InformationMatrixCalculator() {}

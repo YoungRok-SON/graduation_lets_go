@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <thread>
+#include <chrono>
 
 #include <Eigen/Dense>
 #include <pcl/io/pcd_io.h>
@@ -173,7 +174,7 @@ class HdlGraphSlamNode  {
     ros::Subscriber keyframe_sub_;
     ros::ServiceServer  updated_keyframe_client_;
     // Number of Vehicles
-    unsigned int num_vehicle_;
+    int num_vehicle_;
 
     std::string points_topic;
     ros::Publisher read_until_pub;
@@ -218,8 +219,8 @@ class HdlGraphSlamNode  {
     std::unique_ptr<InformationMatrixCalculator> inf_calclator;
 
     // Thread Things
-    std::thread optimization_thread;
-    std::thread map_publish_thread;
+    std::thread* optimization_thread;
+    std::thread* map_publish_thread;
     std::atomic_bool request_pause;
     int graph_update_interval;
     int map_cloud_update_interval;

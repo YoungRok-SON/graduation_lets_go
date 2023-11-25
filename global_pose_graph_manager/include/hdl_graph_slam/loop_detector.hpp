@@ -44,19 +44,19 @@ namespace hdl_graph_slam
      */
     LoopDetector(ros::NodeHandle &pnh)
     {
-      distance_thresh = pnh.param<double>("distance_thresh", 5.0);
-      accum_distance_thresh = pnh.param<double>("accum_distance_thresh", 8.0); // 첫번째 Keyframe으로부터의 누적 이동 거리
-      distance_from_last_edge_thresh = pnh.param<double>("min_edge_interval", 5.0); // 마지막으로 생성된 에지와의 누적거리!
+      distance_thresh = pnh.param<double>("global_pose_graph_manager/distance_thresh", 5.0);
+      accum_distance_thresh = pnh.param<double>("global_pose_graph_manager/accum_distance_thresh", 8.0); // 첫번째 Keyframe으로부터의 누적 이동 거리
+      distance_from_last_edge_thresh = pnh.param<double>("global_pose_graph_manager/min_edge_interval", 5.0); // 마지막으로 생성된 에지와의 누적거리!
 
-      fitness_score_max_range = pnh.param<double>("fitness_score_max_range", std::numeric_limits<double>::max()); // 이건 왜 필요한거지
-      fitness_score_thresh = pnh.param<double>("fitness_score_thresh", 0.5);
+      fitness_score_max_range = pnh.param<double>("global_pose_graph_manager/fitness_score_max_range", std::numeric_limits<double>::max()); // 이건 왜 필요한거지
+      fitness_score_thresh = pnh.param<double>("global_pose_graph_manager/fitness_score_thresh", 0.5);
 
       /* New Feature */
-      use_submap_loop_         = pnh.param<bool>("use_submap_loop", false);
-      nr_submap_keyframe_      = pnh.param<int>("nr_submap_keyframe", 8);
-      map_cloud_resolution_    = pnh.param<double>("map_cloud_resolution", 0.05);
-      distance_far_th_         = pnh.param<double>("distance_near_thresh", 0.5);
-      distance_near_th_        = pnh.param<double>("distance_far_thresh", 4.0);
+      use_submap_loop_         = pnh.param<bool>("global_pose_graph_manager/use_submap_loop", false);
+      nr_submap_keyframe_      = pnh.param<int>("global_pose_graph_manager/nr_submap_keyframe", 8);
+      map_cloud_resolution_    = pnh.param<double>("global_pose_graph_manager/map_cloud_resolution", 0.05);
+      distance_far_th_         = pnh.param<double>("global_pose_graph_manager/distance_near_thresh", 0.5);
+      distance_near_th_        = pnh.param<double>("global_pose_graph_manager/distance_far_thresh", 4.0);
       registration             = select_registration_method(pnh); // 정합 알고리즘
       last_edge_accum_distance = 0.0;
       map_cloud_generator_.reset(new MapCloudGenerator()); // New Feature

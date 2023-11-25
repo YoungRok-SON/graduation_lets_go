@@ -4,22 +4,11 @@
   <!-- Set use_sim_time parameter when you use bag data.-->
   <param name="/use_sim_time" value="true"/>
 
-  <!-- arguments -->
-  <arg name="nodelet_manager" default="velodyne_nodelet_manager" />
-  <arg name="enable_floor_detection" default="false" />
-  <arg name="enable_gps" default="false" />
-  <arg name="enable_imu_acc" default="false" />
-  <arg name="enable_imu_ori" default="false" />
-
-  <arg name="points_topic" default="/camera/depth/color/points" /> <!-- 토픽 받는 부분 변경 -->
-  <arg name="odom_topic" default="/orb_slam2_rgbd/pose" />
   <arg name="map_frame_id" default="map" />
   <arg name="lidar_odom_frame_id" default="odom" />
 
-
   <!-- hdl_graph_slam_node -->
-  <node pkg="hdl_graph_slam" type="hdl_graph_slam_node" name="graph_optimiation_loop_closer" output="screen">
-    <param name="points_topic"         value="$(arg points_topic)" />
+  <node name="global_pose_graph_manager" pkg="hdl_graph_slam" type="hdl_graph_slam_node"  output="screen">
     <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
     <param name="create_scan_ndt"     value="false" />
@@ -43,9 +32,6 @@
     <param name="g2o_solver_type" value="lm_var_cholmod" />
     <param name="g2o_solver_num_iterations" value="512" />
     <!-- constraint switches -->
-    <param name="enable_gps" value="$(arg enable_gps)" />
-    <param name="enable_imu_acceleration" value="$(arg enable_imu_acc)" />
-    <param name="enable_imu_orientation" value="$(arg enable_imu_ori)" />
     <!-- keyframe registration params -->
     <param name="max_keyframes_per_update" value="20" />
     <param name="keyframe_delta_trans" value="1.0" />       <!-- meter-Default: 1.0 -->
@@ -109,9 +95,10 @@
   <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/graduate_ws/src/graduation_lets_go/global_pose_graph_manager/hdl_test.rviz"/>
+  
+  
   <node name="rosbag_player" pkg="rosbag" type="play" 
-    args="-q $(env HOME)/graduate_ws/keyframe_msgs.bag  --clock">
-  </node>
+    args="-q $(env HOME)/graduate_ws/keyframe_msgs.bag  --clock"> </node>
 
 
     <!-- optional arguments -->

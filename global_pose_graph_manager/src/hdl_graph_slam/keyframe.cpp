@@ -15,6 +15,7 @@ namespace hdl_graph_slam
   typedef pcl::PointXYZRGB PointC;
   typedef pcl::PointXYZI PointT;
 
+  /* KeyFrame */
 
   KeyFrame::KeyFrame( const ros::Time &stamp, const Eigen::Isometry3d &odom, 
                       double accum_distance, 
@@ -58,6 +59,7 @@ namespace hdl_graph_slam
   {
       this->cloud_c = cloud;
       // conver xyzrgb to xyzi
+      this->cloud_t = pcl::make_shared<pcl::PointCloud<PointT>>();
       this->cloud_t->resize(cloud->size());
       for (int i = 0; i < cloud->size(); i++)
       {
@@ -211,6 +213,11 @@ namespace hdl_graph_slam
   {
     return node->estimate();
   }
+
+
+
+  /* KeyFrameSnapshot */
+
 
   KeyFrameSnapshot::KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointC>::ConstPtr &cloud_c) : pose(pose), cloud(cloud_c) {} // 들어온 값을 사용해서 초기화?
 
