@@ -204,7 +204,7 @@ void Node::PublishKeyFrameData()
 
     kf_msg.header.stamp = ros::Time( pKF->mTimeStamp );
     kf_msg.header.frame_id = map_frame_id_param_;
-    kf_msg.vehicle_id = 1;
+    kf_msg.vehicle_id = 0;
     kf_msg.id = pKF->mnId;
     kf_msg.Pose.position.x = position_vec.x();
     kf_msg.Pose.position.y = position_vec.y();

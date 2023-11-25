@@ -56,16 +56,16 @@ namespace hdl_graph_slam
     using PointT = pcl::PointXYZI;
 
     // select a registration method (ICP, GICP, NDT)
-    std::string registration_method = pnh.param<std::string>("registration_method", "NDT_OMP");
+    std::string registration_method = pnh.param<std::string>("global_pose_graph_manager/registration_method", "NDT_OMP");
     if (registration_method == "FAST_GICP")
     {
       std::cout << "registration: FAST_GICP" << std::endl;
       fast_gicp::FastGICP<PointT, PointT>::Ptr gicp(new fast_gicp::FastGICP<PointT, PointT>());
-      gicp->setNumThreads(pnh.param<int>("reg_num_threads", 0));
-      gicp->setTransformationEpsilon(pnh.param<double>("reg_transformation_epsilon", 0.01));
-      gicp->setMaximumIterations(pnh.param<int>("reg_maximum_iterations", 64));
-      gicp->setMaxCorrespondenceDistance(pnh.param<double>("reg_max_correspondence_distance", 2.5));
-      gicp->setCorrespondenceRandomness(pnh.param<int>("reg_correspondence_randomness", 20));
+      gicp->setNumThreads(pnh.param<int>("global_pose_graph_manager/reg_num_threads", 0));
+      gicp->setTransformationEpsilon(pnh.param<double>("global_pose_graph_manager/reg_transformation_epsilon", 0.01));
+      gicp->setMaximumIterations(pnh.param<int>("global_pose_graph_manager/reg_maximum_iterations", 64));
+      gicp->setMaxCorrespondenceDistance(pnh.param<double>("global_pose_graph_manager/reg_max_correspondence_distance", 2.5));
+      gicp->setCorrespondenceRandomness(pnh.param<int>("global_pose_graph_manager/reg_correspondence_randomness", 20));
       return gicp;
     }
 #ifdef USE_VGICP_CUDA
@@ -119,12 +119,12 @@ namespace hdl_graph_slam
       {
         std::cout << "registration: GICP_OMP" << std::endl;
         pclomp::GeneralizedIterativeClosestPoint<PointT, PointT>::Ptr gicp(new pclomp::GeneralizedIterativeClosestPoint<PointT, PointT>());
-        gicp->setTransformationEpsilon(pnh.param<double>("reg_transformation_epsilon", 0.01));
-        gicp->setMaximumIterations(pnh.param<int>("reg_maximum_iterations", 64));
-        gicp->setUseReciprocalCorrespondences(pnh.param<bool>("reg_use_reciprocal_correspondences", false));
-        gicp->setMaxCorrespondenceDistance(pnh.param<double>("reg_max_correspondence_distance", 2.5));
-        gicp->setCorrespondenceRandomness(pnh.param<int>("reg_correspondence_randomness", 20));
-        gicp->setMaximumOptimizerIterations(pnh.param<int>("reg_max_optimizer_iterations", 20));
+        gicp->setTransformationEpsilon(pnh.param<double>("global_pose_graph_manager/reg_transformation_epsilon", 0.01));
+        gicp->setMaximumIterations(pnh.param<int>("global_pose_graph_manager/reg_maximum_iterations", 64));
+        gicp->setUseReciprocalCorrespondences(pnh.param<bool>("global_pose_graph_manager/reg_use_reciprocal_correspondences", false));
+        gicp->setMaxCorrespondenceDistance(pnh.param<double>("global_pose_graph_manager/reg_max_correspondence_distance", 2.5));
+        gicp->setCorrespondenceRandomness(pnh.param<int>("global_pose_graph_manager/reg_correspondence_randomness", 20));
+        gicp->setMaximumOptimizerIterations(pnh.param<int>("global_pose_graph_manager/reg_max_optimizer_iterations", 20));
         return gicp;
       }
     }
@@ -136,7 +136,7 @@ namespace hdl_graph_slam
         std::cerr << "       : use NDT" << std::endl;
       }
 
-      double ndt_resolution = pnh.param<double>("reg_resolution", 0.5);
+      double ndt_resolution = pnh.param<double>("global_pose_graph_manager/reg_resolution", 0.5);
       if (registration_method.find("OMP") == std::string::npos)
       {
         std::cout << "registration: NDT " << ndt_resolution << std::endl;
@@ -148,16 +148,16 @@ namespace hdl_graph_slam
       }
       else
       {
-        int num_threads = pnh.param<int>("reg_num_threads", 0);
-        std::string nn_search_method = pnh.param<std::string>("reg_nn_search_method", "DIRECT7");
+        int num_threads = pnh.param<int>("global_pose_graph_manager/reg_num_threads", 0);
+        std::string nn_search_method = pnh.param<std::string>("global_pose_graph_manager/reg_nn_search_method", "DIRECT7");
         std::cout << "registration: NDT_OMP " << nn_search_method << " " << ndt_resolution << " (" << num_threads << " threads)" << std::endl;
         pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr ndt(new pclomp::NormalDistributionsTransform<PointT, PointT>()); // NDT_OMP와 NDT와 다른점은 pclomp::NormalDistributionsTransform를 사용
         if (num_threads > 0)
         {
           ndt->setNumThreads(num_threads);
         }
-        ndt->setTransformationEpsilon(pnh.param<double>("reg_transformation_epsilon", 0.01));
-        ndt->setMaximumIterations(pnh.param<int>("reg_maximum_iterations", 64));
+        ndt->setTransformationEpsilon(pnh.param<double>("global_pose_graph_manager/reg_transformation_epsilon", 0.01));
+        ndt->setMaximumIterations(pnh.param<int>("global_pose_graph_manager/reg_maximum_iterations", 64));
         ndt->setResolution(ndt_resolution);
         if (nn_search_method == "KDTREE")
         {

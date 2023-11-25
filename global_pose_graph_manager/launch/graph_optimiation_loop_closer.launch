@@ -9,7 +9,6 @@
 
   <!-- hdl_graph_slam_node -->
   <node name="global_pose_graph_manager" pkg="hdl_graph_slam" type="hdl_graph_slam_node"  output="screen">
-    <param name="published_odom_topic" value="$(arg odom_topic)" />
     <!-- New Features -->
     <param name="create_scan_ndt"     value="false" />
     <param name="use_submap_loop"     value="true" />
@@ -39,7 +38,6 @@
     <!-- fix first node for optimization stability -->
     <param name="fix_first_node" value="true"/>
     <param name="fix_first_node_stddev" value="10 10 10 1 1 1"/>
-    <param name="fix_first_node_adaptive" value="true"/>
     <!-- loop closure params -->
     <param name="distance_thresh" value="1.0" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
     <param name="accum_distance_thresh" value="10.0" />
@@ -58,20 +56,7 @@
     <param name="reg_resolution" value="0.4" /> <!-- ndt resolution은 이걸로 설정 -->
     <param name="reg_nn_search_method" value="DIRECT7" />
     <!-- edge params -->
-    <!-- GPS -->
-    <param name="gps_edge_robust_kernel" value="NONE" />
-    <param name="gps_edge_robust_kernel_size" value="1.0" />
-    <param name="gps_edge_stddev_xy" value="20.0" />
-    <param name="gps_edge_stddev_z" value="5.0" />
-    <!-- IMU orientation -->
-    <param name="imu_orientation_edge_robust_kernel" value="NONE" />
-    <param name="imu_orientation_edge_stddev" value="1.0" />
-    <!-- IMU acceleration (gravity vector) -->
-    <param name="imu_acceleration_edge_robust_kernel" value="NONE" />
-    <param name="imu_acceleration_edge_stddev" value="1.0" />
-    <!-- ground plane -->
-    <param name="floor_edge_robust_kernel" value="NONE" />
-    <param name="floor_edge_stddev" value="10.0" />
+
     <!-- scan matching -->
     <!-- robust kernels: NONE, Cauchy, DCS, Fair, GemanMcClure, Huber, PseudoHuber, Saturated, Tukey, Welsch -->
     <param name="odometry_edge_robust_kernel" value="NONE" />
