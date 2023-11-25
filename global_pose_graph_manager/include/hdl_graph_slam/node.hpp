@@ -198,6 +198,7 @@ class HdlGraphSlamNode  {
     std::mutex keyframes_snapshot_mutex;
     std::vector<std::vector<KeyFrameSnapshot::Ptr>> mvvKF_snapshots;
     std::unique_ptr<MapCloudGenerator> map_cloud_generator;
+    int num_iterations;
 
     // graph slam
     // all the below members must be accessed after locking main_thread_mutex

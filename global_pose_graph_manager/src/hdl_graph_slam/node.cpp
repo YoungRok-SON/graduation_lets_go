@@ -35,10 +35,12 @@ namespace hdl_graph_slam
     if (optimization_thread->joinable()) 
     {
         optimization_thread->join();
+        std::cout << "Optimization Thread Finished. \n" << std::flush;
     }
     if (map_publish_thread->joinable()) 
     {
         map_publish_thread->join();
+        std::cout << "Map Viewer Thread Finished. \n" << std::flush;
     }
   }
 
@@ -50,7 +52,9 @@ namespace hdl_graph_slam
     map_frame_id = nh_.param<std::string>("global_pose_graph_manager/map_frame_id", "map");
     odom_frame_id = nh_.param<std::string>("global_pose_graph_manager/odom_frame_id", "odom");
     map_cloud_resolution = nh_.param<double>("global_pose_graph_manager/map_cloud_resolution", 0.1);
+    num_iterations = nh_.param<int>("global_pose_graph_manager/g2o_solver_num_iterations", 1024);
     std::cout << "Map Cloud Resolution: " << map_cloud_resolution << std::endl;
+    std::cout << "Pose Graph Optimization Iterations: " << num_iterations << std::endl;
 
     // 한 업데이트(최적화)마다 최대로 최적화할 수 있는 키 프레임
     // Q. 그럼 1번부터 10번까지 했으면 10번부터 19번까지 진행되는건가?
@@ -123,6 +127,7 @@ namespace hdl_graph_slam
     // init Keyframe Containers
     keyframe_queues.resize(num_vehicle_); // 기체 수만큼 큐를 벡터에 생성
     mvdKFs_new.resize(num_vehicle_);
+    mvvKFs.resize(num_vehicle_);
     mv_trans_odom2map.resize(num_vehicle_);
     for (auto &odom2map_tf : mv_trans_odom2map)
       odom2map_tf.setIdentity();
@@ -190,7 +195,8 @@ namespace hdl_graph_slam
       std::lock_guard<std::mutex> lock(main_thread_mutex);
       // add keyframes in the queues to the pose graph
       bool keyframe_updated = flush_keyframe_queue(); // for local optimization
-      std::cout << "keyframe Updated: " << keyframe_updated << "\n" << std::flush;
+      for( auto &keyframe_deque : mvdKFs_new)
+        std::cout << "keyframe Updated: " << keyframe_deque.size() << "\n" << std::flush;
 
       if (!keyframe_updated)
         continue;
@@ -224,11 +230,9 @@ namespace hdl_graph_slam
         // new_keyframes의 모든 원소들이 keyframes의 끝에 추가
         mvdKFs_new[vehicle_idx].clear();
       }
-      std::cout << "Loop Detection Done " << keyframe_updated << std::flush;
+      std::cout << "Loop Detection Done. \n " << keyframe_updated << std::flush;
       // optimize the pose graph
-      int num_iterations = nh_.param<int>("g2o_solver_num_iterations", 1024);
-      
-      // loop가 없으면 최적화를 진행할 필요가 있나?
+    
       graph_slam->optimize(num_iterations); // 지정한 회수만큼 최적화 진행
       graph_updated = true;
 
@@ -261,7 +265,7 @@ namespace hdl_graph_slam
       std::cout << " Keyframe Snapshot Done " << "\n" << std::flush;
 
       // publish odom and markers topics of all vehicles.
-      for ( int vehicle_idx = 0; vehicle_idx < num_vehicle_; num_vehicle_++ )
+      for ( int vehicle_idx = 0; vehicle_idx < num_vehicle_; vehicle_idx++ )
       {
         if (odom2map_pubs[vehicle_idx].getNumSubscribers())
         {
@@ -269,6 +273,7 @@ namespace hdl_graph_slam
           odom2map_pubs[vehicle_idx].publish(ts);
         }
       }
+
       if (markers_pub.getNumSubscribers())
       {
         auto markers = create_marker_array(ros::Time::now());
@@ -294,102 +299,87 @@ namespace hdl_graph_slam
 
     // check whether the queue is empty
     bool element_exist = false;
+    std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
     for (int vehicle_idx = 0; vehicle_idx < keyframe_queues.size(); vehicle_idx++)
     {
-      std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
+      
       if (!keyframe_queues[vehicle_idx].empty())
       {
-        element_exist = manage_multi_vehicle_keyframe(vehicle_idx, vec_odom2map[vehicle_idx]);
+        int num_processed = 0;
+        // element_exist = manage_multi_vehicle_keyframe(vehicle_idx, vec_odom2map[vehicle_idx]);
+        for (int i = 0; i < std::min<int>(keyframe_queues[vehicle_idx].size(), max_keyframes_per_update); i++) // Keyframe queue에 있는 개수가 min보다 작으면 개수만큼만 진행
+        { 
+          num_processed = i; // processed keyframe 개수
+
+          const auto &keyframe = keyframe_queues[vehicle_idx][i];
+          // new_keyframes will be tested later for loop closure
+          mvdKFs_new[vehicle_idx].push_back(keyframe);
+
+          // add pose node
+          Eigen::Isometry3d odom = vec_odom2map[vehicle_idx] * keyframe->odom;
+          // Keyframe 객체를 생성할 때 노드에 대한 값이 비어 있음. 그걸 이때 채워넣음. 그리고 그래프 안에도 넣어줌
+          keyframe->node = graph_slam->add_se3_node(odom); 
+          
+          // fix the first node
+          if (mvvKFs[vehicle_idx].empty() && mvdKFs_new[vehicle_idx].size() == 1) // check each vehicle's first keyframe
+          {
+
+            if (nh_.param<bool>("global_pose_graph_manager/fix_first_node", false))
+            {
+              Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
+              if ( !anchor_established )
+              {
+                std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/de_stddev", "1 1 1 1 1 1"));
+                for (int i = 0; i < 6; i++)
+                {
+                  double stddev = 1.0;
+                  sst >> stddev;
+                  inf(i, i) = 1.0 / stddev;
+                }
+
+                anchor_node = graph_slam->add_se3_node(Eigen::Isometry3d::Identity()); 
+                anchor_node->setFixed(true);  // 고정
+                anchor_established = true;
+              }
+              anchor_edge = graph_slam->add_se3_edge(anchor_node, keyframe->node, Eigen::Isometry3d::Identity(), inf); // 앵커노드와 각 vehicle의 첫번째 키프레임 사이 에지를 지정
+              std::cout << "Anchor Vertex Fixed. \n" << std::endl;
+            }
+          }
+
+          if (i == 0 && mvvKFs[vehicle_idx].empty()) // 만약 Keyframe들을 모아놓는 벡터에 아무것도 없으면 그냥 넘어감
+          {
+
+            continue; // Anchor Node와 첫 키프레임 사이의 에지를 추가하고 넘어감
+          }
+
+          /* --------------------------------------------------------------------------- */
+          // add edge between consecutive keyframes
+          const auto &prev_keyframe = i == 0 ? mvvKFs[vehicle_idx].back() : keyframe_queues[vehicle_idx][i - 1]; // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
+          /* --------------------------------------------------------------------------- */
+
+          std::cout << "KeyFrame Added to Graph. \n" << std::endl;
+          // 연결된 두 포즈 사이의 상대 포즈를 계산
+          Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
+          // 연결된 두 포주 사이의 정보 행렬 계산 -> 고정된 값으로 진행(ORB), 조금 더 큰 값(NDT), 아루코마커 위치 정보에 대한 정보 행렬도 지정해서 그냥 사용
+          static double stddev_x = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_x", 0.0l);
+          static double stddev_q = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_q", 0.1);
+          Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
+          inf.topLeftCorner(3, 3).array() /= stddev_x*stddev_x;     // need to be increased by Uncertainty increase
+          inf.bottomRightCorner(3, 3).array() /= stddev_q*stddev_q; // need to be increased by Uncertainty increase
+
+          // 연결된 두 포즈 사이의 에지를 추가
+          auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, inf);
+          // Robust Kernel 추가
+          graph_slam->add_robust_kernel(edge, nh_.param<std::string>("global_pose_graph_manager/odometry_edge_robust_kernel", "NONE"), nh_.param<double>("global_pose_graph_manager/odometry_edge_robust_kernel_size", 1.0));
+          element_exist = true;
+        }
+        // 3초에 한번씩 도니까 한번 싹 밀어 넣은 다음에 처리한건 다 지움
+        keyframe_queues[vehicle_idx].erase( keyframe_queues[vehicle_idx].begin(),  keyframe_queues[vehicle_idx].begin() + num_processed + 1);
       }
     }
     return element_exist;
   }
 
-
-
-
-
-
-  bool HdlGraphSlamNode::manage_multi_vehicle_keyframe(int vehicle_num, Eigen::Isometry3d odom2map)
-  {
-    //Keyframe queue도 있는데 이건 왜 따로 벡터로 지정해놨지? -> keyframe_queue는 callback에서 계속 쌓이고 이 함수 마지막에 그래프에 들어간 keyframe만큼 지워짐. 그리고 keyframes 벡터에 넣어줌.
-    int num_processed = 0;
-
-    std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
-    std::cout << "keyframe_queue Size: " << keyframe_queues[vehicle_num].size() << "\n" << std::flush;
-
-
-    // for (int i = 0; i < std::min<int>(keyframe_queues[vehicle_num].size(), max_keyframes_per_update); i++) // Keyframe queue에 있는 개수가 min보다 작으면 개수만큼만 진행
-    // { // 왜 자꾸 여기서 멈추지???????????????
-    //   std::cout <<"Why are you stop here? \n" << std::flush;
-    //   num_processed = i; // processed keyframe 개수
-
-    //   const auto &keyframe = keyframe_queues[vehicle_num][i];
-    //   // new_keyframes will be tested later for loop closure
-    //   mvdKFs_new[vehicle_num].push_back(keyframe);
-
-    //   // add pose node
-    //   Eigen::Isometry3d odom = odom2map * keyframe->odom;
-    //   // Keyframe 객체를 생성할 때 노드에 대한 값이 비어 있음. 그걸 이때 채워넣음. 그리고 그래프 안에도 넣어줌
-    //   keyframe->node = graph_slam->add_se3_node(odom); 
-      
-    //   // fix the first node
-    //   if (mvvKFs[vehicle_num].empty() && mvdKFs_new[vehicle_num].size() == 1) // check each vehicle's first keyframe
-    //   {
-
-    //     if (nh_.param<bool>("global_pose_graph_manager/fix_first_node", false))
-    //     {
-    //       Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
-    //       if ( !anchor_established )
-    //       {
-    //         std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/de_stddev", "1 1 1 1 1 1"));
-    //         for (int i = 0; i < 6; i++)
-    //         {
-    //           double stddev = 1.0;
-    //           sst >> stddev;
-    //           inf(i, i) = 1.0 / stddev;
-    //         }
-
-    //         anchor_node = graph_slam->add_se3_node(Eigen::Isometry3d::Identity()); 
-    //         anchor_node->setFixed(true);  // 고정
-    //         anchor_established = true;
-    //       }
-    //       anchor_edge = graph_slam->add_se3_edge(anchor_node, keyframe->node, Eigen::Isometry3d::Identity(), inf); // 앵커노드와 각 vehicle의 첫번째 키프레임 사이 에지를 지정
-    //       std::cout << "Anchor Vertex Fixed. \n" << std::endl;
-    //     }
-    //   }
-
-    //   if (i == 0 && mvvKFs[vehicle_num].empty()) // 만약 Keyframe들을 모아놓는 벡터에 아무것도 없으면 그냥 넘어감
-    //   {
-
-    //     continue; // Anchor Node와 첫 키프레임 사이의 에지를 추가하고 넘어감
-    //   }
-
-    //   /* --------------------------------------------------------------------------- */
-    //   // add edge between consecutive keyframes
-    //   const auto &prev_keyframe = i == 0 ? mvvKFs[vehicle_num].back() : keyframe_queues[vehicle_num][i - 1]; // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
-    //   /* --------------------------------------------------------------------------- */
-
-    //   std::cout << "KeyFrame Added to Graph. \n" << std::endl;
-    //   // 연결된 두 포즈 사이의 상대 포즈를 계산
-    //   Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
-    //   // 연결된 두 포주 사이의 정보 행렬 계산 -> 고정된 값으로 진행(ORB), 조금 더 큰 값(NDT), 아루코마커 위치 정보에 대한 정보 행렬도 지정해서 그냥 사용
-    //   static double stddev_x = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_x", 0.0l);
-    //   static double stddev_q = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_q", 0.1);
-    //   Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
-    //   inf.topLeftCorner(3, 3).array() /= stddev_x*stddev_x;     // need to be increased by Uncertainty increase
-    //   inf.bottomRightCorner(3, 3).array() /= stddev_q*stddev_q; // need to be increased by Uncertainty increase
-
-    //   // 연결된 두 포즈 사이의 에지를 추가
-    //   auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, inf);
-    //   // Robust Kernel 추가
-    //   graph_slam->add_robust_kernel(edge, nh_.param<std::string>("global_pose_graph_manager/odometry_edge_robust_kernel", "NONE"), nh_.param<double>("global_pose_graph_manager/odometry_edge_robust_kernel_size", 1.0));
-    // }
-
-    // 3초에 한번씩 도니까 한번 싹 밀어 넣은 다음에 처리한건 다 지움
-    // keyframe_queues[vehicle_num].erase( keyframe_queues[vehicle_num].begin(),  keyframe_queues[vehicle_num].begin() + num_processed + 1);
-    return true;
-  }
 
 
 
