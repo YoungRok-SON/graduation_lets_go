@@ -13,7 +13,7 @@ Panels:
         - /Graph_SLAM_Loop_Closure1/Dense Map PCD1
         - /Debugging Topics1
       Splitter Ratio: 0.5053957104682922
-    Tree Height: 245
+    Tree Height: 365
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -483,4 +483,4 @@ Window Geometry:
     collapsed: true
   Width: 1026
   X: 3830
-  Y: 863
+  Y: 383

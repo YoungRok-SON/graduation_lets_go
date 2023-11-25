@@ -72,8 +72,8 @@
     <param name="min_stddev_q" value="0.05" />
     <param name="max_stddev_q" value="0.2" />
     <!-- update params -->
-    <param name="graph_update_interval" value="1" />
-    <param name="map_cloud_update_interval" value="2" />
+    <param name="graph_update_interval" value="3" />
+    <param name="map_cloud_update_interval" value="5" />
     <param name="map_cloud_resolution" value="0.05" />
   </node>
 
@@ -83,7 +83,7 @@
   
   
   <node name="rosbag_player" pkg="rosbag" type="play" 
-    args="-q $(env HOME)/graduate_ws/keyframe_msgs.bag  --clock"> </node>
+    args="-q $(env HOME)/graduate_ws/2023-11-25-21-48-13.bag  --clock"> </node>
 
 
     <!-- optional arguments -->
