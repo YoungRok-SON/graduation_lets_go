@@ -193,7 +193,7 @@ void Node::PublishKeyFrameData()
       return;
     keyframe_msgs::keyframe kf_msg;
     // Convert pose to std_msgs::Pose
-     cv::Mat poseKF = pKF->GetPoseInverse();
+     cv::Mat poseKF = pKF->GetPose();
 
     // Convert the pose to a transform
     tf2::Transform pose_orb_to_map = TransformFromMat(poseKF);
@@ -447,7 +447,7 @@ tf2::Transform Node::TransformFromMat (cv::Mat position_mat) {
   //Coordinate transformation matrix from orb coordinate system to ros coordinate system
   const tf2::Matrix3x3 tf_orb_to_ros (0, 0, 1,
                                     -1, 0, 0,
-                                     0,-1, 0); // Roll: 180, Pitch: -90, Yaw: 90
+                                     0,-1, 0); // Roll: 180, Pitch: -90, Yaw: 90 
 
   //Transform from orb coordinate system to ros coordinate system on camera coordinates
   tf_camera_rotation = tf_orb_to_ros*tf_camera_rotation;

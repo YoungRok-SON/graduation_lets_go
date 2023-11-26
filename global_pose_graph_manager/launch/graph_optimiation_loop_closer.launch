@@ -79,11 +79,11 @@
 
   <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
 
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/graduate_ws/src/graduation_lets_go/global_pose_graph_manager/hdl_test.rviz"/>
+  <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/graduate_ws/src/graduation_lets_go/global_pose_graph_manager/hdl_test.rviz"/> -->
   
   
-  <node name="rosbag_player" pkg="rosbag" type="play" 
-    args="-q $(env HOME)/graduate_ws/2023-11-25-21-48-13.bag  --clock"> </node>
+  <!-- <node name="rosbag_player" pkg="rosbag" type="play" 
+    args="-q $(env HOME)/graduate_ws/keyframe_engD.bag  -clock"> </node> -->
 
 
     <!-- optional arguments -->

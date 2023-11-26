@@ -27,7 +27,11 @@ pcl::PointCloud<MapCloudGenerator::PointC>::Ptr MapCloudGenerator::generate(cons
     for(const auto& src_pt : keyframe->cloud->points) 
     {
       PointC dst_pt;
-      dst_pt.getVector4fMap() = pose * src_pt.getVector4fMap(); // 포인트를 하나하나 다 최적화된 위치 기반으로 옮겨줌
+      PointC tmp_pt;
+      tmp_pt.getVector4fMap() = pose * src_pt.getVector4fMap(); // 포인트를 하나하나 다 최적화된 위치 기반으로 옮겨줌
+      dst_pt.x =  tmp_pt.z;
+      dst_pt.y = -tmp_pt.x;
+      dst_pt.z = -tmp_pt.y;
       dst_pt.r = src_pt.r;
       dst_pt.g = src_pt.g;
       dst_pt.b = src_pt.b;
@@ -73,7 +77,11 @@ pcl::PointCloud<MapCloudGenerator::PointC>::Ptr MapCloudGenerator::generate(cons
     for(const auto& src_pt : keyframe->cloud_c->points) 
     {
       PointC dst_pt;
-      dst_pt.getVector4fMap() = pose * src_pt.getVector4fMap(); // 포인트를 하나하나 다 최적화된 위치 기반으로 옮겨줌
+      PointC tmp_pt;
+      tmp_pt.getVector4fMap() = pose * src_pt.getVector4fMap(); // 포인트를 하나하나 다 최적화된 위치 기반으로 옮겨줌
+      dst_pt.x =  tmp_pt.z;
+      dst_pt.y = -tmp_pt.x;
+      dst_pt.z = -tmp_pt.y;
       dst_pt.r = src_pt.r;
       dst_pt.g = src_pt.g;
       dst_pt.b = src_pt.b;

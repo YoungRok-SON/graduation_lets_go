@@ -359,7 +359,8 @@ namespace hdl_graph_slam
 
           std::cout << "KeyFrame Added to Graph. \n" << std::endl;
           // 연결된 두 포즈 사이의 상대 포즈를 계산
-          Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
+          // Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
+          Eigen::Isometry3d relative_pose =  prev_keyframe->odom * keyframe->odom.inverse(); // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
           // 연결된 두 포주 사이의 정보 행렬 계산 -> 고정된 값으로 진행(ORB), 조금 더 큰 값(NDT), 아루코마커 위치 정보에 대한 정보 행렬도 지정해서 그냥 사용
           static double stddev_x = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_x", 0.0l);
           static double stddev_q = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_q", 0.1);
