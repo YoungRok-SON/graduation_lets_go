@@ -50,7 +50,7 @@ namespace hdl_graph_slam
     
     // init parameters
     map_frame_id = nh_.param<std::string>("global_pose_graph_manager/map_frame_id", "map");
-    odom_frame_id = nh_.param<std::string>("global_pose_graph_manager/odom_frame_id", "odom");
+    odom_frame_id = nh_.param<std::string>("global_pose_graph_manager/odom_frame_id", "odom_pgo");
     map_cloud_resolution = nh_.param<double>("global_pose_graph_manager/map_cloud_resolution", 0.1);
     num_iterations = nh_.param<int>("global_pose_graph_manager/g2o_solver_num_iterations", 1024);
     std::cout << "Map Cloud Resolution: " << map_cloud_resolution << std::endl;
@@ -87,6 +87,7 @@ namespace hdl_graph_slam
     debug_ndt_scan_marker_pub          = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
     debug_ndt_map_marker_pub           = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
     debug_loop_closure_sub_map_pub     = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/loop_closure_sub_map", 1, true);
+    all_keyframe_pose_publisher_       = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/all_keyframe_pose_gpo", 1, true);
 
     /* Variables for NDT things */
     leaf_voxel_size_    = nh_.param<double>("global_pose_graph_manager/leaf_voxel_size", 0.5);
@@ -193,6 +194,7 @@ namespace hdl_graph_slam
 
       std::cout << "Optization Thread Running... \n" << std::flush;
       std::lock_guard<std::mutex> lock(main_thread_mutex);
+
       // add keyframes in the queues to the pose graph
       bool keyframe_updated = flush_keyframe_queue(); // for local optimization
       for( auto &keyframe_deque : mvdKFs_new)
@@ -220,7 +222,7 @@ namespace hdl_graph_slam
             Eigen::MatrixXd information_matrix = inf_calclator->calc_information_matrix(loop->key1->cloud_t, loop->key2->cloud_t, relpose);
             auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix);
             
-            graph_slam->add_robust_kernel(edge, nh_.param<std::string>("loop_closure_edge_robust_kernel", "NONE"), nh_.param<double>("loop_closure_edge_robust_kernel_size", 1.0));
+            graph_slam->add_robust_kernel(edge, nh_.param<std::string>("global_pose_graph_manager/loop_closure_edge_robust_kernel", "NONE"), nh_.param<double>("global_pose_graph_manager/loop_closure_edge_robust_kernel_size", 1.0));
             // Debug Publisher    
             if(debug_loop_closer_target_pub.getNumSubscribers() && debug_loop_closer_source_pub.getNumSubscribers())
               debug_loop_closure_points_pose(loop);
@@ -360,12 +362,14 @@ namespace hdl_graph_slam
           std::cout << "KeyFrame Added to Graph. \n" << std::endl;
           // 연결된 두 포즈 사이의 상대 포즈를 계산
           Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
+
           // 연결된 두 포주 사이의 정보 행렬 계산 -> 고정된 값으로 진행(ORB), 조금 더 큰 값(NDT), 아루코마커 위치 정보에 대한 정보 행렬도 지정해서 그냥 사용
-          static double stddev_x = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_x", 0.0l);
-          static double stddev_q = nh_.param<double>("global_pose_graph_manager/odom_edge_stddev_q", 0.1);
+          static double stddev_x = nh_.param<double>("global_pose_graph_manager/const_stddev_x", 0.0l);
+          static double stddev_q = nh_.param<double>("global_pose_graph_manager/const_stddev_q", 0.1);
           Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
           inf.topLeftCorner(3, 3).array() /= stddev_x*stddev_x;     // need to be increased by Uncertainty increase
           inf.bottomRightCorner(3, 3).array() /= stddev_q*stddev_q; // need to be increased by Uncertainty increase
+          std::cout << "Information Matrix Calculated. " << inf << std::endl;
 
           // 연결된 두 포즈 사이의 에지를 추가
           auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, inf);
@@ -427,6 +431,7 @@ namespace hdl_graph_slam
         sensor_msgs::PointCloud2Ptr cloud_msg(new sensor_msgs::PointCloud2()); 
         pcl::toROSMsg(*cloud, *cloud_msg);  // 실행하면 cloud가 비워짐.
         map_points_pubs[vehicle_num].publish(cloud_msg);
+        PublishKeyFramePose();
         std::cout << "Map Point Publish Thread Done. Wating a time... \n" << std::endl;
       }
     }
@@ -829,6 +834,115 @@ namespace hdl_graph_slam
 
       return true;
     }
+
+
+
+  void HdlGraphSlamNode::PublishKeyFramePose( ) 
+  {
+    if (mvvKFs[0].empty())
+    {
+      ROS_WARN("Keyframe vector is empty!");
+      return;
+    }
+
+    
+    // Generate 3 arrows for each keyframe
+    visualization_msgs::MarkerArray marker_array;
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = map_frame_id;
+    marker.header.stamp = mvvKFs[0].back()->stamp;
+    marker.ns = "keyframe_pose";
+    marker.type = visualization_msgs::Marker::ARROW;
+    marker.action = visualization_msgs::Marker::ADD;
+    marker.lifetime = ros::Duration(0.0);
+
+
+    for ( auto it = mvvKFs[0].begin(); it != mvvKFs[0].end(); it++) 
+    {
+
+      // Get the keyframe
+      KeyFrame::Ptr pKF = *it;
+
+      // Get pose
+      auto pose = pKF->node->estimate();
+
+      // Iso3d -> tf2
+      Eigen::Vector3d position_vec_eigen = pose.translation();
+      Eigen::Quaterniond orientation_quat_eigen(pose.rotation());
+      tf2::Vector3 position_vec(position_vec_eigen.x(), position_vec_eigen.y(), position_vec_eigen.z());
+      tf2::Quaternion orientation_quat(orientation_quat_eigen.x(), orientation_quat_eigen.y(), orientation_quat_eigen.z(), orientation_quat_eigen.w());
+
+      
+      // Create the x, y, and z arrows
+      visualization_msgs::Marker x_arrow = marker;
+      x_arrow.id = (pKF)->keyframe_id * 3;
+      x_arrow.pose.position.x = position_vec.x();
+      x_arrow.pose.position.y = position_vec.y();
+      x_arrow.pose.position.z = position_vec.z();
+      x_arrow.pose.orientation.x = orientation_quat.x();
+      x_arrow.pose.orientation.y = orientation_quat.y();
+      x_arrow.pose.orientation.z = orientation_quat.z();
+      x_arrow.pose.orientation.w = orientation_quat.w();
+      x_arrow.scale.x = 0.2;
+      x_arrow.scale.y = 0.01;
+      x_arrow.scale.z = 0.01;
+      x_arrow.color.r = 1.0;
+      x_arrow.color.g = 0.0;
+      x_arrow.color.b = 0.0;
+      x_arrow.color.a = 1.0;
+
+      // Create the y axis arrow by rotate the x axis arrow
+      visualization_msgs::Marker y_arrow = marker;
+      y_arrow.id = pKF->keyframe_id * 3 + 1;
+      y_arrow.pose.position.x = position_vec.x();
+      y_arrow.pose.position.y = position_vec.y();
+      y_arrow.pose.position.z = position_vec.z();
+      // Rotate axis by 90 degrees around z axis of x_arrow
+      tf2::Quaternion y_quat;
+      y_quat.setRPY(0, 0, M_PI/2);
+      tf2::Quaternion y_axis = orientation_quat * y_quat;
+      y_arrow.pose.orientation.x = y_axis.x();
+      y_arrow.pose.orientation.y = y_axis.y();
+      y_arrow.pose.orientation.z = y_axis.z();
+      y_arrow.pose.orientation.w = y_axis.w();
+      y_arrow.scale.x = 0.2;
+      y_arrow.scale.y = 0.01;
+      y_arrow.scale.z = 0.01;
+      y_arrow.color.r = 0.0;
+      y_arrow.color.g = 1.0;
+      y_arrow.color.b = 0.0;
+      y_arrow.color.a = 1.0;
+
+      // Cretae the z axis arrow by rotating the x axis arrow
+      visualization_msgs::Marker z_arrow = marker;
+      z_arrow.id = pKF->keyframe_id * 3 + 2;
+      z_arrow.pose.position.x = position_vec.x();
+      z_arrow.pose.position.y = position_vec.y();
+      z_arrow.pose.position.z = position_vec.z();
+      tf2::Quaternion z_quat;
+      z_quat.setRPY(0, -M_PI/2, 0);
+      tf2::Quaternion z_axis = orientation_quat * z_quat;
+      z_arrow.pose.orientation.x = z_axis.x();
+      z_arrow.pose.orientation.y = z_axis.y();
+      z_arrow.pose.orientation.z = z_axis.z();
+      z_arrow.pose.orientation.w = z_axis.w();
+      z_arrow.scale.x = 0.2;
+      z_arrow.scale.y = 0.01;
+      z_arrow.scale.z = 0.01;
+      z_arrow.color.r = 0.0;
+      z_arrow.color.g = 0.0;
+      z_arrow.color.b = 1.0;
+      z_arrow.color.a = 1.0;
+      
+      // Add the arrows to the marker array
+      marker_array.markers.push_back(x_arrow);
+      marker_array.markers.push_back(y_arrow);
+      marker_array.markers.push_back(z_arrow);
+    }
+
+    // Publish the marker array
+    all_keyframe_pose_publisher_.publish(marker_array);
+  }
 
   
 } // namespace hdl_graph_slam

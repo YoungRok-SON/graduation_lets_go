@@ -294,7 +294,8 @@ void Node::PublishPositionAsTransform (cv::Mat position) {
   tf_broadcaster.sendTransform(msg);
 }
 
-void Node::PublishPositionAsPoseStamped (cv::Mat position) {
+void Node::PublishPositionAsPoseStamped (cv::Mat position) 
+{
   tf2::Transform tf_position = TransformFromMat(position);
 
   // Make transform from camera frame to target frame

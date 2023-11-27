@@ -221,7 +221,7 @@ namespace hdl_graph_slam
 
   KeyFrameSnapshot::KeyFrameSnapshot(const Eigen::Isometry3d &pose, const pcl::PointCloud<PointC>::ConstPtr &cloud_c) : pose(pose), cloud(cloud_c) {} // 들어온 값을 사용해서 초기화?
 
-  KeyFrameSnapshot::KeyFrameSnapshot(const KeyFrame::Ptr &key) : pose(key->node->estimate()), cloud(key->cloud_c),leaves(key->leaves) {} // 최적화된 위치를 받아서 Pose를 초기화
+  KeyFrameSnapshot::KeyFrameSnapshot(const KeyFrame::Ptr &key) : pose(key->node->estimate()), cloud(key->cloud_c){} // 최적화된 위치를 받아서 Pose를 초기화
 
   KeyFrameSnapshot::~KeyFrameSnapshot() {}
 

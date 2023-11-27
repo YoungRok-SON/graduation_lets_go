@@ -190,8 +190,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 2.2744388580322266
-            Min Value: -1.3915265798568726
+            Max Value: 2.387875556945801
+            Min Value: -1.8441368341445923
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -221,17 +221,27 @@ Visualization Manager:
       Displays:
         - Class: rviz/MarkerArray
           Enabled: true
+          Marker Topic: /hdl_graph_slam/debug/all_keyframe_pose_gpo
+          Name: Keyframes_poses
+          Namespaces:
+            keyframe_pose: true
+          Queue Size: 100
+          Value: true
+        - Class: rviz/MarkerArray
+          Enabled: true
           Marker Topic: /hdl_graph_slam/markers
           Name: Pose Graph Marker
           Namespaces:
-            {}
+            edges: true
+            loop_close_radius: true
+            nodes: true
           Queue Size: 100
           Value: true
         - Alpha: 0.5
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 1.8231205940246582
-            Min Value: -1.126879334449768
+            Max Value: 4.604366779327393
+            Min Value: 0.2543666958808899
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -453,7 +463,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 3.7970778942108154
+      Distance: 2.0038390159606934
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -461,9 +471,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -0.00598106300458312
-        Y: 0.5858430862426758
-        Z: 0.5415428876876831
+        X: 0.03367408365011215
+        Y: -0.07394785434007645
+        Z: 0.43937399983406067
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -495,5 +505,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1993
-  X: -24
-  Y: -15
+  X: 1616
+  Y: -16

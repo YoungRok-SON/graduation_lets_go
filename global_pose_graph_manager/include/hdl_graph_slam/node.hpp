@@ -132,6 +132,9 @@ class HdlGraphSlamNode  {
      * @return
      */
     bool save_map_service(hdl_graph_slam::SaveMapRequest &req, hdl_graph_slam::SaveMapResponse &res);
+
+    void PublishKeyFramePose( );
+
    
 
   private:
@@ -147,6 +150,7 @@ class HdlGraphSlamNode  {
     ros::Publisher debug_ndt_scan_arrow_marker_pub; // scan arrow marker publisher
     ros::Publisher debug_ndt_map_marker_pub;        // Whole Map ndt elipsoidal marker publisher
     tf2_ros::TransformBroadcaster debug_tf2_tf_broadcaster;
+    ros::Publisher all_keyframe_pose_publisher_;
 
     // NDT Variables
     bool    create_scan_ndt_;
