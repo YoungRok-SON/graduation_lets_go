@@ -40,6 +40,7 @@
 #include"ORBextractor.h"
 #include "Initializer.h"
 #include "System.h"
+#include "AruCoMarkerDetection.h"
 
 #include <mutex>
 
@@ -51,17 +52,18 @@ class Map;
 class LocalMapping;
 class LoopClosing;
 class System;
+class AruCpMarkerDetection;
 
-struct ORBParameters
-{
-    // general parameters for the ORB detector
-    int maxFrames, nFeatures, nLevels, iniThFAST, minThFAST;
-    bool RGB;
-    float scaleFactor, depthMapFactor, thDepth;
-    // camera parameters
-    float fx, fy, cx, cy, baseline;
-    float k1, k2, p1, p2, k3;
-};
+// struct ORBParameters
+// {
+//     // general parameters for the ORB detector
+//     int maxFrames, nFeatures, nLevels, iniThFAST, minThFAST;
+//     bool RGB;
+//     float scaleFactor, depthMapFactor, thDepth;
+//     // camera parameters
+//     float fx, fy, cx, cy, baseline;
+//     float k1, k2, p1, p2, k3;
+// };
 
 class Tracking
 {
@@ -136,6 +138,8 @@ protected:
 
     // Map initialization for stereo and RGB-D
     void StereoInitialization();
+    void StereoInitialization(cv::Mat initPoseFromMarker);
+
 
     // Map initialization for monocular
     void MonocularInitialization();
@@ -195,6 +199,8 @@ protected:
 
     //Map
     Map* mpMap;
+
+    AruCoMarkerDetection* mpAruCoMarkerDetection;
 
     //Calibration matrix
     cv::Mat mK;
