@@ -10,8 +10,6 @@ Panels:
         - /ORB_SLAM21
         - /ORB_SLAM21/ORB_Map_PCD1/Autocompute Value Bounds1
         - /Graph_SLAM_Loop_Closure1
-        - /Graph_SLAM_Loop_Closure1/Pose Graph Marker1/Status1
-        - /Graph_SLAM_Loop_Closure1/Dense Map PCD1
         - /Debugging Topics1
       Splitter Ratio: 0.5053957104682922
     Tree Height: 963
@@ -192,8 +190,8 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 2.4583261013031006
-            Min Value: -2.1040499210357666
+            Max Value: 2.2744388580322266
+            Min Value: -1.3915265798568726
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -455,7 +453,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 23.165618896484375
+      Distance: 3.7970778942108154
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -471,9 +469,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7647964358329773
+      Pitch: 1.1797963380813599
       Target Frame: base_link
-      Yaw: 3.7859864234924316
+      Yaw: 3.585986375808716
     Saved: ~
 Window Geometry:
   Depth_img:
@@ -497,5 +495,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1993
-  X: 8
-  Y: 17
+  X: -24
+  Y: -15
