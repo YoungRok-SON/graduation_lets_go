@@ -75,6 +75,7 @@ void RGBDNode::ImageCallback (const sensor_msgs::ImageConstPtr& msgRGB, const se
   try
   {
     pcl::fromROSMsg(*msgPointCloud, *pointcloud);
+    pointcloud->header.frame_id = "camera_link";
   }
   catch(const pcl::PCLException& e)
   {

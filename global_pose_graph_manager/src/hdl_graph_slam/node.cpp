@@ -152,6 +152,18 @@ namespace hdl_graph_slam
     // Get Point Cloud Data
     pcl::PointCloud<PointC>::Ptr cloud(new pcl::PointCloud<PointC>());
     pcl::fromROSMsg(keyframe_msg.PointCloud, *cloud);
+
+    tf::StampedTransform transform;
+    if (!tf_listener.canTransform("base_link", "camera_color_optical_frame", ros::Time(0))) // IMU에 대한 tf 검사도 해야한는 거 아닌가/
+    {
+      std::cerr << "failed to find transform between " << "base_link" << " and " << "camera_color_optical_frame" << std::endl;
+    }
+    tf_listener.waitForTransform("camera_link", "camera_color_optical_frame", ros::Time(0), ros::Duration(2.0));
+    tf_listener.lookupTransform("camera_link", "camera_color_optical_frame", ros::Time(0), transform);
+
+    pcl::PointCloud<PointC>::Ptr transformed(new pcl::PointCloud<PointC>());
+    pcl_ros::transformPointCloud(*cloud, *transformed, transform);
+    transformed->header.frame_id = "base_link";
     
     // Get Keyframe id and vehicle id 
     const int &keyframe_id       = keyframe_msg.id;
@@ -163,7 +175,7 @@ namespace hdl_graph_slam
 
     // Create Keyframe object
     double accum_d = keyframe_updater->get_accum_distance();
-    KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, cloud, keyframe_id, vehicle_id));
+    KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, transformed, keyframe_id, vehicle_id));
 
     std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
     keyframe_queues[keyframe->vehicle_id].push_back(keyframe); // 생성한 키프레임 객체를 id에 맞는 큐에 넣기
