@@ -74,10 +74,14 @@ public:
         mpDictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_250);
         // Set detector parameters
         mpDetectorParams = cv::aruco::DetectorParameters::create();
-        // mpDetectorParams->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
-        // mpDetectorParams->cornerRefinementWinSize = 5;
-        // mpDetectorParams->cornerRefinementMaxIterations = 30;
-        // mpDetectorParams->cornerRefinementMinAccuracy = 0.1;
+        mpDetectorParams->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+        mpDetectorParams->cornerRefinementWinSize = 5;
+        mpDetectorParams->cornerRefinementMaxIterations = 30;
+        mpDetectorParams->cornerRefinementMinAccuracy = 0.1;
+        AroCo2Map = (cv::Mat_<float>(4, 4) << -1,  0,  0, 0,
+                                               0, -1,  0, -1.5,
+                                               0,  0,  1, 0,
+                                               0,  0,  0, 1);
 
         return true;
     }
@@ -153,13 +157,13 @@ public:
     cv::Mat GetPose() {
         // Implementation for getting the pose
         if(!mPose.empty() && mMarkerDetected )
-            return mPose;
+            return mPose*AroCo2Map;
         return cv::Mat();
     }
     cv::Mat GetPoseInverse() {
         // Implementation for getting the pose
         if(!mPoseInverse.empty() && mMarkerDetected)
-            return mPoseInverse;
+            return mPoseInverse*AroCo2Map;
         return cv::Mat();
     }
 
@@ -169,8 +173,10 @@ private:
     
     cv::Mat mCameraMatrix;
     cv::Mat mDistCoeffs;
-    float mBaseline;
+    float   mBaseline;
     cv::Mat mPoseInverse;
+
+    cv::Mat AroCo2Map;
 
     std::vector<int> mviMarkerIds;
     std::vector<std::vector<cv::Point2f>> mvvp2fMarkerCorners;
