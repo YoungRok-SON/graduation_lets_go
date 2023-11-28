@@ -209,8 +209,12 @@ namespace hdl_graph_slam
 
       // add keyframes in the queues to the pose graph
       bool keyframe_updated = flush_keyframe_queue(); // for local optimization
-      for( auto &keyframe_deque : mvdKFs_new)
-        std::cout << "keyframe Updated: " << keyframe_deque.size() << "\n" << std::flush;
+      for(int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
+      {
+        if (mvvKFs[vehicle_num].empty())
+          continue;
+        std::cout << "Vehicle Num: " << vehicle_num << "Updated Node: " << mvvKFs[vehicle_num].size() << "\n" << std::flush;
+      }
 
       if (!keyframe_updated)
         continue;
