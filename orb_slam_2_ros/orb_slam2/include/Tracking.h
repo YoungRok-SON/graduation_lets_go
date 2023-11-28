@@ -52,7 +52,7 @@ class Map;
 class LocalMapping;
 class LoopClosing;
 class System;
-class AruCpMarkerDetection;
+class AruCoMarkerDetection;
 
 // struct ORBParameters
 // {

@@ -71,13 +71,13 @@ public:
         mBaseline = parameters.baseline;
 
         // Set dictionary
-        cv::Ptr<cv::aruco::Dictionary> mpDictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+        mpDictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_250);
         // Set detector parameters
         mpDetectorParams = cv::aruco::DetectorParameters::create();
-        mpDetectorParams->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
-        mpDetectorParams->cornerRefinementWinSize = 5;
-        mpDetectorParams->cornerRefinementMaxIterations = 30;
-        mpDetectorParams->cornerRefinementMinAccuracy = 0.1;
+        // mpDetectorParams->cornerRefinementMethod = cv::aruco::CORNER_REFINE_SUBPIX;
+        // mpDetectorParams->cornerRefinementWinSize = 5;
+        // mpDetectorParams->cornerRefinementMaxIterations = 30;
+        // mpDetectorParams->cornerRefinementMinAccuracy = 0.1;
 
         return true;
     }
@@ -88,28 +88,43 @@ public:
         std::lock_guard<std::mutex> lock(mMutex);
         mMarkerDetected = false; 
         // Set Current Image
-        if( SetImage(image))
+        if (image.empty())
         {
-            std::cout << "Image has been set." << std::endl;
-        }
-        else
-        {
-            std::cerr << "Failed to set image." << std::endl;
+            std::cerr << "Failed to load image" << std::endl;
             return false;
         }
+        mCurrentImage = image;
 
         // Detect markers
+        mvvp2fMarkerCorners.clear();
+        mviMarkerIds.clear();
         cv::aruco::detectMarkers(mCurrentImage, mpDictionary, mvvp2fMarkerCorners, mviMarkerIds, mpDetectorParams);
         if (mviMarkerIds.size() >0)
         {
+            mMarkerDetected = true;
             // Estimate camera pose
-            EstimateCameraPose();
+            cv::aruco::estimatePoseSingleMarkers(mvvp2fMarkerCorners, 0.5, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec);
+            cv::aruco::drawDetectedMarkers(mCurrentImage, mvvp2fMarkerCorners, mviMarkerIds);
+            cv::aruco::drawAxis(mCurrentImage, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec, 0.1);
+            cv::Mat R;
+            cv::Rodrigues(mRotVec, R); // 회전 벡터를 회전 행렬로 변환
+
+            mPose = (cv::Mat_<float>(4, 4) << 
+            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), mTransVec.at<double>(0),
+            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), mTransVec.at<double>(1),
+            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), mTransVec.at<double>(2),
+            0, 0, 0, 1);
+
+            mPoseInverse = mPose.inv(); // 동차 변환 행렬의 역변환
+            std::cout << "Marker estimation has done." << std::endl;
+            
             // Return true if markers are detected
-            return mMarkerDetected;
+            return true;
         }
         else
         {
             // Return false if markers are not detected
+            std::cout << "Markers are not detected." << std::endl;
             return false;
         }
         
@@ -122,41 +137,12 @@ public:
         std::lock_guard<std::mutex> lock(mMutex);
         if (mviMarkerIds.size() > 0)
         {
-            mMarkerDetected = true;
-            cv::aruco::estimatePoseSingleMarkers(mvvp2fMarkerCorners, 0.05, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec);
-            cv::aruco::drawDetectedMarkers(mCurrentImage, mvvp2fMarkerCorners, mviMarkerIds);
-            cv::aruco::drawAxis(mCurrentImage, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec, 0.1);
-            cv::Mat R;
-            cv::Rodrigues(mRotVec, R); // 회전 벡터를 회전 행렬로 변환
 
-            cv::Mat mPose = (cv::Mat_<double>(4, 4) << 
-            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), mTransVec.at<double>(0),
-            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), mTransVec.at<double>(1),
-            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), mTransVec.at<double>(2),
-            0, 0, 0, 1);
-
-            cv::Mat mPoseInverse = mPose.inv(); // 동차 변환 행렬의 역변환
-            std::cout << "Marker estimation has done." << std::endl;
         }
         else
         {
             mMarkerDetected = false;
         }
-    }
-
-    bool SetImage(const cv::Mat& image) {
-        // Implementation for setting the image
-        // Call detectMarkers and estimateCameraPose methods
-        std::lock_guard<std::mutex> lock(mMutex);
-        
-        if (image.empty())
-        {
-            std::cerr << "Failed to load image" << std::endl;
-            return false;
-        }
-        
-        mCurrentImage = image;
-        return true;
     }
 
     bool isMarkerDetected() {
@@ -166,11 +152,15 @@ public:
 
     cv::Mat GetPose() {
         // Implementation for getting the pose
-        return mPose;
+        if(!mPose.empty() && mMarkerDetected )
+            return mPose;
+        return cv::Mat();
     }
     cv::Mat GetPoseInverse() {
         // Implementation for getting the pose
-        return mPoseInverse;
+        if(!mPoseInverse.empty() && mMarkerDetected)
+            return mPoseInverse;
+        return cv::Mat();
     }
 
 private:
