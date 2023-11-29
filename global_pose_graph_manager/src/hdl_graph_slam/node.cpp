@@ -266,10 +266,11 @@ namespace hdl_graph_slam
       trans_odom2map_mutex.lock();
       for (int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
       {
+        if(mvvKFs[vehicle_num].empty())
+          continue;
         const auto &keyframe = mvvKFs[vehicle_num].back();
         Eigen::Isometry3d trans = keyframe->node->estimate() * keyframe->odom.inverse(); // 이건 어떤 값? -> 오도메트리와 계산된 그래프를 기반으로 최적화된 위치 결과 사이의 변환, 결국 누적 오차 없에는 역할
         mv_trans_odom2map[vehicle_num] = trans.matrix().cast<float>(); // 이 값은 왜 이렇게 해놓지?-> 다음  keyframe이 들어올 때 이전 keyframe과의 차이를 계산하기 위해서
-      
       }
       trans_odom2map_mutex.unlock();
       std::cout << " trans_odom2map Done " << "\n" << std::flush;
