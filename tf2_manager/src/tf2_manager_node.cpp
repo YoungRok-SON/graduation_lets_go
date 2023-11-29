@@ -7,13 +7,18 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "tf2_manager_node");
   ros::NodeHandle nh;
+  std::string nh_namespace = nh.getNamespace();
+  std::string vehicle_camera_link_name = nh_namespace + "/orb_slam2_rgbd/camera_link";
+  std::string vehicle_base_link_name = nh_namespace + "/orb_slam2_rgbd/base_link";
+  std::string vehicle_camera_depth_optical_frame_name = nh_namespace + "/orb_slam2_rgbd/camera_depth_optical_frame";
+  std::string vehicle_camera_color_optical_frame_name = nh_namespace + "/orb_slam2_rgbd/camera_color_optical_frame";
 
   static tf2_ros::StaticTransformBroadcaster static_broadcaster;
 
   // Depth to camera_link transform
   geometry_msgs::TransformStamped depth_to_camera_link;
-  depth_to_camera_link.header.frame_id = "camera_link";
-  depth_to_camera_link.child_frame_id =  "camera_depth_optical_frame";
+  depth_to_camera_link.header.frame_id = vehicle_camera_link_name;
+  depth_to_camera_link.child_frame_id =  vehicle_camera_depth_optical_frame_name;
   depth_to_camera_link.transform.translation.x =  0.0;
   depth_to_camera_link.transform.translation.y =  0.0;
   depth_to_camera_link.transform.translation.z =  0.0;
@@ -24,8 +29,8 @@ int main(int argc, char** argv)
 
   // RGB to camera_link transform
   geometry_msgs::TransformStamped rgb_to_camera_link;
-  rgb_to_camera_link.header.frame_id = "camera_link";
-  rgb_to_camera_link.child_frame_id =  "camera_color_optical_frame";
+  rgb_to_camera_link.header.frame_id = vehicle_camera_link_name;
+  rgb_to_camera_link.child_frame_id =  vehicle_camera_color_optical_frame_name;
   rgb_to_camera_link.transform.translation.x =  0.0;
   rgb_to_camera_link.transform.translation.y =  0.0;
   rgb_to_camera_link.transform.translation.z =  0.0;
@@ -36,8 +41,8 @@ int main(int argc, char** argv)
 
   // Camera_link to base_link transform
   geometry_msgs::TransformStamped camera_link_to_base_link;
-  camera_link_to_base_link.header.frame_id = "base_link";
-  camera_link_to_base_link.child_frame_id  = "camera_link";
+  camera_link_to_base_link.header.frame_id = vehicle_base_link_name;
+  camera_link_to_base_link.child_frame_id  = vehicle_camera_link_name;
   camera_link_to_base_link.transform.translation.x = 0.0;
   camera_link_to_base_link.transform.translation.y = 0.0;
   camera_link_to_base_link.transform.translation.z = 0.0;

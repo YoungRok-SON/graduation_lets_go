@@ -97,10 +97,10 @@ namespace hdl_graph_slam
     use_submap_loop_    = nh_.param<bool>("global_pose_graph_manager/use_submap_loop", false);
 
     // Keyframe Subscriber
-    keyframe_sub_ = nh_.subscribe("/orb_slam2_rgbd/keyframe", 64, &HdlGraphSlamNode::keyframe_callback, this);
+    keyframe_sub_ = nh_.subscribe("/keyframe", 64, &HdlGraphSlamNode::keyframe_callback, this);
 
     // Service server for updatedKeyframe resquest -> callback function needs to be lock when keyframe's pose is updated.
-    updated_keyframe_client_ = nh_.advertiseService("orb_slam2_ros/updatedKeyframe", &HdlGraphSlamNode::updated_keyframe_callback, this);
+    updated_keyframe_client_ = nh_.advertiseService("/updatedKeyframe", &HdlGraphSlamNode::updated_keyframe_callback, this);
     num_vehicle_  = nh_.param<int>("global_pose_graph_manager/num_vehicle", 2);
     std::cout << "Number of Vehicles: " << num_vehicle_ << std::endl;
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +136,7 @@ namespace hdl_graph_slam
 
     optimization_thread =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::optimization_timer_callback, this);
     map_publish_thread  =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::map_points_publish_timer_callback, this);
+
     
     std::cout << "HdlGraphSlamNode Initialization Done." << std::endl;
 
@@ -144,6 +145,10 @@ namespace hdl_graph_slam
 
   void HdlGraphSlamNode::keyframe_callback(const keyframe_msgs::keyframe &keyframe_msg)
   {
+    // Get Keyframe id and vehicle id 
+    const int &keyframe_id       = keyframe_msg.id;
+    const int &vehicle_id        = keyframe_msg.vehicle_id;
+
     // Get odom pose
     std::cout << "Got you Keyframe" << std::endl;
     const ros::Time &stamp       = keyframe_msg.header.stamp;
@@ -152,22 +157,23 @@ namespace hdl_graph_slam
     // Get Point Cloud Data
     pcl::PointCloud<PointC>::Ptr cloud(new pcl::PointCloud<PointC>());
     pcl::fromROSMsg(keyframe_msg.PointCloud, *cloud);
+    std::string str_vehicle = std::to_string(vehicle_id);
+    vehicle_camera_link_name = "vehicle_"+ str_vehicle + "/orb_slam2_rgbd/camera_link";
+    vehicle_base_link_name = "vehicle_"+ str_vehicle + "/orb_slam2_rgbd/base_link";
+    vehicle_camera_color_optical_frame_name = "vehicle_"+ str_vehicle + + "/orb_slam2_rgbd/camera_color_optical_frame";
 
     tf::StampedTransform transform;
-    if (!tf_listener.canTransform("base_link", "camera_color_optical_frame", ros::Time(0))) // IMU에 대한 tf 검사도 해야한는 거 아닌가/
+    if (!tf_listener.canTransform(vehicle_base_link_name, vehicle_camera_color_optical_frame_name, ros::Time(0))) // IMU에 대한 tf 검사도 해야한는 거 아닌가/
     {
       std::cerr << "failed to find transform between " << "base_link" << " and " << "camera_color_optical_frame" << std::endl;
     }
-    tf_listener.waitForTransform("camera_link", "camera_color_optical_frame", ros::Time(0), ros::Duration(2.0));
-    tf_listener.lookupTransform("camera_link", "camera_color_optical_frame", ros::Time(0), transform);
+    tf_listener.waitForTransform(vehicle_camera_link_name, vehicle_camera_color_optical_frame_name, ros::Time(0), ros::Duration(2.0));
+    tf_listener.lookupTransform(vehicle_camera_link_name, vehicle_camera_color_optical_frame_name, ros::Time(0), transform);
 
     pcl::PointCloud<PointC>::Ptr transformed(new pcl::PointCloud<PointC>());
     pcl_ros::transformPointCloud(*cloud, *transformed, transform);
-    transformed->header.frame_id = "base_link";
+    transformed->header.frame_id = vehicle_base_link_name;
     
-    // Get Keyframe id and vehicle id 
-    const int &keyframe_id       = keyframe_msg.id;
-    const int &vehicle_id        = keyframe_msg.vehicle_id;
 
     // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
     if (!keyframe_updater->update(odom)) 
@@ -347,7 +353,7 @@ namespace hdl_graph_slam
               Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
               if ( !anchor_established )
               {
-                std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/de_stddev", "1 1 1 1 1 1"));
+                std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/fix_first_node_stddev", "1 1 1 1 1 1"));
                 for (int i = 0; i < 6; i++)
                 {
                   double stddev = 1.0;

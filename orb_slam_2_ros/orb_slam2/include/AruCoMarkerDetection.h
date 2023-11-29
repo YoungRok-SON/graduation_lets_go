@@ -79,9 +79,13 @@ public:
         mpDetectorParams->cornerRefinementMaxIterations = 30;
         mpDetectorParams->cornerRefinementMinAccuracy = 0.1;
         AroCo2Map = (cv::Mat_<float>(4, 4) << -1,  0,  0, 0,
-                                               0, -1,  0, -1.5,
+                                               0, -1,  0, 0,
                                                0,  0,  1, 0,
                                                0,  0,  0, 1);
+        mPostModify = (cv::Mat_<float>(4, 4) <<     1.0000,         0,         0,            0,
+                                                    0,              0.9696,   -0.2447,       0,
+                                                    0,              0.2447,    0.9696,       0,
+                                                    0,              0,              0,       1);
 
         return true;
     }
@@ -107,16 +111,21 @@ public:
         {
             mMarkerDetected = true;
             // Estimate camera pose
-            cv::aruco::estimatePoseSingleMarkers(mvvp2fMarkerCorners, 0.5, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec);
+            cv::aruco::estimatePoseSingleMarkers(mvvp2fMarkerCorners, 0.1805, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec);
             cv::aruco::drawDetectedMarkers(mCurrentImage, mvvp2fMarkerCorners, mviMarkerIds);
             cv::aruco::drawAxis(mCurrentImage, mCameraMatrix, mDistCoeffs, mRotVec, mTransVec, 0.1);
             cv::Mat R;
             cv::Rodrigues(mRotVec, R); // 회전 벡터를 회전 행렬로 변환
 
+            // mPose = (cv::Mat_<float>(4, 4) << 
+            // R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), mTransVec.at<double>(0),
+            // R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), mTransVec.at<double>(1),
+            // R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), mTransVec.at<double>(2),
+            // 0, 0, 0, 1);
             mPose = (cv::Mat_<float>(4, 4) << 
-            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), mTransVec.at<double>(0),
-            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), mTransVec.at<double>(1),
-            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), mTransVec.at<double>(2),
+            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), 0.0,
+            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), 0.0,
+            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), 0.0,
             0, 0, 0, 1);
 
             mPoseInverse = mPose.inv(); // 동차 변환 행렬의 역변환
@@ -157,13 +166,13 @@ public:
     cv::Mat GetPose() {
         // Implementation for getting the pose
         if(!mPose.empty() && mMarkerDetected )
-            return mPose*AroCo2Map;
+            return mPostModify*mPose*AroCo2Map;
         return cv::Mat();
     }
     cv::Mat GetPoseInverse() {
         // Implementation for getting the pose
         if(!mPoseInverse.empty() && mMarkerDetected)
-            return mPoseInverse*AroCo2Map;
+            return mPostModify*mPoseInverse*AroCo2Map;
         return cv::Mat();
     }
 
@@ -177,6 +186,7 @@ private:
     cv::Mat mPoseInverse;
 
     cv::Mat AroCo2Map;
+    cv::Mat mPostModify;
 
     std::vector<int> mviMarkerIds;
     std::vector<std::vector<cv::Point2f>> mvvp2fMarkerCorners;

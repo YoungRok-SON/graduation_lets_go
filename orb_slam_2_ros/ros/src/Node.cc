@@ -37,12 +37,15 @@ void Node::Init () {
   node_handle_.param(name_of_node_+ "/publish_tf", publish_tf_param_, true);
   node_handle_.param<std::string>(name_of_node_+ "/pointcloud_frame_id", map_frame_id_param_, "map");
   node_handle_.param<std::string>(name_of_node_+ "/camera_frame_id", camera_frame_id_param_, "camera_link");
-  std::cout << "camera_frame_id_param_: " << camera_frame_id_param_ << std::endl;
   node_handle_.param<std::string>(name_of_node_+"/target_frame_id", target_frame_id_param_, "base_link");
-  std::cout << "target_frame_id_param_: " << target_frame_id_param_ << std::endl;
   node_handle_.param<std::string>(name_of_node_ + "/map_file", map_file_name_param_, "map.bin");
   node_handle_.param<std::string>(name_of_node_ + "/voc_file", voc_file_name_param_, "file_not_set");
   node_handle_.param(name_of_node_ + "/load_map", load_map_param_, false);
+  std::string modified_name_of_node = name_of_node_.substr(1);
+  camera_frame_id_param_ = modified_name_of_node+"/"+ camera_frame_id_param_;
+  target_frame_id_param_ = modified_name_of_node+"/"+ target_frame_id_param_;
+  std::cout << "camera_frame_id_param_: " << camera_frame_id_param_ << std::endl;
+  std::cout << "target_frame_id_param_: " << target_frame_id_param_ << std::endl;
 
    // Create a parameters object to pass to the Tracking system
    ORB_SLAM2::ORBParameters parameters;
@@ -73,10 +76,10 @@ void Node::Init () {
 
   status_gba_publisher_        = node_handle_.advertise<std_msgs::Bool> (name_of_node_+"/gba_running", 1);
   all_keyframe_pose_publisher_ = node_handle_.advertise<visualization_msgs::MarkerArray> (name_of_node_+"/keyframe_pose", 1);
-  Keyframe_publisher_          = node_handle_.advertise<keyframe_msgs::keyframe> (name_of_node_+"/keyframe", 1);
+  Keyframe_publisher_          = node_handle_.advertise<keyframe_msgs::keyframe> ("/keyframe", 1);
  
   // srv
-  updated_keyframe_client_ = node_handle_.serviceClient<keyframe_msgs::updatedKeyFrame>(name_of_node_+"/updated_keyframes");
+  updated_keyframe_client_ = node_handle_.serviceClient<keyframe_msgs::updatedKeyFrame>("/updated_keyframes");
 }
 
 // Node update and publish

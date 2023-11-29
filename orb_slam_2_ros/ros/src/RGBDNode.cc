@@ -44,7 +44,7 @@ RGBDNode::RGBDNode (const ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &no
   rgb_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, resolved_rgb_topic, 1);
   depth_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, resolved_depth_topic, 1);
   pointcloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (node_handle, resolved_pointcloud_topic, 1);
-  camera_info_topic_ = "/camera/rgb/camera_info";
+  camera_info_topic_ = name_of_node_+"/camera_info";
 
   sync_ = new message_filters::Synchronizer<sync_pol> (sync_pol(10), *rgb_subscriber_, *depth_subscriber_, *pointcloud_subscriber_);
   sync_->registerCallback(boost::bind(&RGBDNode::ImageCallback, this, _1, _2, _3));
