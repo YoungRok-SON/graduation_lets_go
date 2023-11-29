@@ -59,6 +59,11 @@ class RGBDNode : public Node // Node 클래스를 상속받음
     message_filters::Subscriber<sensor_msgs::Image> *depth_subscriber_;
     message_filters::Subscriber<sensor_msgs::PointCloud2> *pointcloud_subscriber_;
     message_filters::Synchronizer<sync_pol> *sync_;
+
+    std::string name_of_node_;
+    std::string rgb_image_topic_;
+    std::string depth_image_topic_;
+    std::string pointcloud_topic_;
 };
 
 #endif //ORBSLAM2_ROS_RGBDODE_H_

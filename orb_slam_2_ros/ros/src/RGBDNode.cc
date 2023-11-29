@@ -29,10 +29,21 @@ int main(int argc, char **argv)
 }
 
 
-RGBDNode::RGBDNode (const ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &node_handle, image_transport::ImageTransport &image_transport) : Node (sensor, node_handle, image_transport) {
-  rgb_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, "/camera/rgb/image_raw", 1);
-  depth_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, "/camera/depth_registered/image_raw", 1);
-  pointcloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (node_handle, "/camera/depth/color/points", 1);
+RGBDNode::RGBDNode (const ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &node_handle, image_transport::ImageTransport &image_transport) : Node (sensor, node_handle, image_transport) 
+{
+  name_of_node_ = ros::this_node::getName();
+  
+  node_handle.param<std::string>(name_of_node_+ "/rgb_image_topic", rgb_image_topic_, "test");
+  node_handle.param<std::string>(name_of_node_+ "/depth_image_topic", depth_image_topic_, "test2");
+  node_handle.param<std::string>(name_of_node_+ "/pointcloud_topic", pointcloud_topic_, "test3");
+
+  std::string resolved_rgb_topic = node_handle.getNamespace() + rgb_image_topic_;
+  std::string resolved_depth_topic = node_handle.getNamespace() +  depth_image_topic_;
+  std::string resolved_pointcloud_topic = node_handle.getNamespace() + pointcloud_topic_;
+
+  rgb_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, resolved_rgb_topic, 1);
+  depth_subscriber_ = new message_filters::Subscriber<sensor_msgs::Image> (node_handle, resolved_depth_topic, 1);
+  pointcloud_subscriber_ = new message_filters::Subscriber<sensor_msgs::PointCloud2> (node_handle, resolved_pointcloud_topic, 1);
   camera_info_topic_ = "/camera/rgb/camera_info";
 
   sync_ = new message_filters::Synchronizer<sync_pol> (sync_pol(10), *rgb_subscriber_, *depth_subscriber_, *pointcloud_subscriber_);
@@ -43,6 +54,7 @@ RGBDNode::RGBDNode (const ORB_SLAM2::System::eSensor sensor, ros::NodeHandle &no
 RGBDNode::~RGBDNode () {
   delete rgb_subscriber_;
   delete depth_subscriber_;
+  delete pointcloud_subscriber_;
   delete sync_;
 }
 

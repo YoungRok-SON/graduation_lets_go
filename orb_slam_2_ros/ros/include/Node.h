@@ -99,7 +99,8 @@ class Node
     // bool updatedKeyFrameServiceCallback( keyframe_msgs::updatedKeyFrame::Request &req, keyframe_msgs::updatedKeyFrame::Response &res);
     bool CallUpdatedKeyFrameService( );
 
-    
+    int vehicle_number_;
+
     // initialization Transform listener
     boost::shared_ptr<tf2_ros::Buffer> tfBuffer;
     boost::shared_ptr<tf2_ros::TransformListener> tfListener;

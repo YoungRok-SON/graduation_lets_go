@@ -37,7 +37,9 @@ void Node::Init () {
   node_handle_.param(name_of_node_+ "/publish_tf", publish_tf_param_, true);
   node_handle_.param<std::string>(name_of_node_+ "/pointcloud_frame_id", map_frame_id_param_, "map");
   node_handle_.param<std::string>(name_of_node_+ "/camera_frame_id", camera_frame_id_param_, "camera_link");
-  node_handle_.param<std::string>(name_of_node_+ "/target_frame_id", target_frame_id_param_, "base_link");
+  std::cout << "camera_frame_id_param_: " << camera_frame_id_param_ << std::endl;
+  node_handle_.param<std::string>(name_of_node_+"/target_frame_id", target_frame_id_param_, "base_link");
+  std::cout << "target_frame_id_param_: " << target_frame_id_param_ << std::endl;
   node_handle_.param<std::string>(name_of_node_ + "/map_file", map_file_name_param_, "map.bin");
   node_handle_.param<std::string>(name_of_node_ + "/voc_file", voc_file_name_param_, "file_not_set");
   node_handle_.param(name_of_node_ + "/load_map", load_map_param_, false);
