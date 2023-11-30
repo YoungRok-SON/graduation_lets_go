@@ -147,7 +147,6 @@ class HdlGraphSlamNode  {
     ros::Publisher debug_loop_closer_source_pub;
     ros::Publisher debug_loop_closure_target_pose_pub;
     ros::Publisher debug_loop_closure_source_pose_pub;
-    ros::Publisher debug_loop_closure_sub_map_pub;
     ros::Publisher debug_ndt_scan_marker_pub;       // scan elipsoidal marker publisher
     ros::Publisher debug_ndt_scan_arrow_marker_pub; // scan arrow marker publisher
     ros::Publisher debug_ndt_map_marker_pub;        // Whole Map ndt elipsoidal marker publisher
@@ -167,6 +166,7 @@ class HdlGraphSlamNode  {
     ros::NodeHandle nh_;
 
     ros::Publisher markers_pub;
+    ros::Publisher keyframe_pcd_pub_;
 
     std::string published_odom_topic;
     std::string map_frame_id;

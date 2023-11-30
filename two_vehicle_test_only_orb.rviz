@@ -1,17 +1,19 @@
 Panels:
   - Class: rviz/Displays
-    Help Height: 78
+    Help Height: 0
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /TF1
         - /TF1/Frames1
         - /Vehicle 0 Topics1
         - /Vehicle 0 Topics1/ORB Map Points1/Autocompute Value Bounds1
+        - /Vehicle 0 Topics1/Sensor Data1
         - /Vehicle 1 Topics1
+        - /Vehicle 1 Topics1/Sensor Data1
         - /Global Pose Graph Manager1
-        - /Debugging Topics1
       Splitter Ratio: 0.41446453332901
-    Tree Height: 801
+    Tree Height: 409
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -29,7 +31,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: ORB Map Points
+    SyncSource: V0 Depth Image
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -62,16 +64,30 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        base_link:
+        debug_loop_closure_source_pose:
           Value: true
-        camera_color_optical_frame:
-          Value: false
-        camera_depth_optical_frame:
-          Value: false
-        camera_link:
-          Value: false
+        debug_loop_closure_target_pose:
+          Value: true
         map:
           Value: true
+        odom:
+          Value: false
+        vehicle_0/orb_slam2_rgbd/base_link:
+          Value: true
+        vehicle_0/orb_slam2_rgbd/camera_color_optical_frame:
+          Value: false
+        vehicle_0/orb_slam2_rgbd/camera_depth_optical_frame:
+          Value: false
+        vehicle_0/orb_slam2_rgbd/camera_link:
+          Value: false
+        vehicle_1/orb_slam2_rgbd/base_link:
+          Value: true
+        vehicle_1/orb_slam2_rgbd/camera_color_optical_frame:
+          Value: false
+        vehicle_1/orb_slam2_rgbd/camera_depth_optical_frame:
+          Value: false
+        vehicle_1/orb_slam2_rgbd/camera_link:
+          Value: false
       Marker Alpha: 1
       Marker Scale: 1
       Name: TF
@@ -79,13 +95,25 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
+        debug_loop_closure_source_pose:
+          {}
+        debug_loop_closure_target_pose:
+          {}
         map:
-          base_link:
-            camera_link:
-              camera_color_optical_frame:
+          vehicle_1/orb_slam2_rgbd/base_link:
+            vehicle_1/orb_slam2_rgbd/camera_link:
+              vehicle_1/orb_slam2_rgbd/camera_color_optical_frame:
                 {}
-              camera_depth_optical_frame:
+              vehicle_1/orb_slam2_rgbd/camera_depth_optical_frame:
                 {}
+        odom:
+          {}
+        vehicle_0/orb_slam2_rgbd/base_link:
+          vehicle_0/orb_slam2_rgbd/camera_link:
+            vehicle_0/orb_slam2_rgbd/camera_color_optical_frame:
+              {}
+            vehicle_0/orb_slam2_rgbd/camera_depth_optical_frame:
+              {}
       Update Interval: 0
       Value: true
     - Class: rviz/Group
@@ -96,7 +124,7 @@ Visualization Manager:
           Max Value: 1
           Median window: 5
           Min Value: 0
-          Name: ORB Debug Image
+          Name: V0 ORB Debug Image
           Normalize Range: true
           Queue Size: 2
           Transport Hint: raw
@@ -105,8 +133,104 @@ Visualization Manager:
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 2.6370882987976074
-            Min Value: -1.0475807189941406
+            Max Value: 2.0554633140563965
+            Min Value: -1.458824634552002
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: AxisColor
+          Decay Time: 0
+          Enabled: false
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Min Color: 0; 0; 0
+          Name: ORB Map Points
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.009999999776482582
+          Style: Points
+          Topic: /vehicle_0/orb_slam2_rgbd/map_points
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: false
+        - Class: rviz/MarkerArray
+          Enabled: false
+          Marker Topic: /vehicle_0/orb_slam2_rgbd/keyframe_pose
+          Name: ORB KeyFrame Pose Marker
+          Namespaces:
+            {}
+          Queue Size: 100
+          Value: false
+        - Class: rviz/Group
+          Displays:
+            - Class: rviz/Image
+              Enabled: true
+              Image Topic: /vehicle_0/camera/color/image_raw
+              Max Value: 1
+              Median window: 5
+              Min Value: 0
+              Name: V0 RGB Image
+              Normalize Range: true
+              Queue Size: 2
+              Transport Hint: raw
+              Unreliable: false
+              Value: true
+            - Class: rviz/Image
+              Enabled: true
+              Image Topic: /vehicle_0/camera/aligned_depth_to_color/image_raw
+              Max Value: 1
+              Median window: 5
+              Min Value: 0
+              Name: V0 Depth Image
+              Normalize Range: true
+              Queue Size: 2
+              Transport Hint: raw
+              Unreliable: false
+              Value: true
+            - Alpha: 1
+              Autocompute Intensity Bounds: true
+              Autocompute Value Bounds:
+                Max Value: 10
+                Min Value: -10
+                Value: true
+              Axis: Z
+              Channel Name: intensity
+              Class: rviz/PointCloud2
+              Color: 255; 255; 255
+              Color Transformer: RGB8
+              Decay Time: 0
+              Enabled: true
+              Invert Rainbow: false
+              Max Color: 255; 255; 255
+              Min Color: 0; 0; 0
+              Name: V0 Depth Point Cloud
+              Position Transformer: XYZ
+              Queue Size: 10
+              Selectable: true
+              Size (Pixels): 3
+              Size (m): 0.009999999776482582
+              Style: Flat Squares
+              Topic: /vehicle_0/camera/depth/color/points
+              Unreliable: false
+              Use Fixed Frame: true
+              Use rainbow: true
+              Value: true
+          Enabled: true
+          Name: Sensor Data
+      Enabled: true
+      Name: Vehicle 0 Topics
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 0.699999988079071
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 0
+            Min Value: 0
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -125,45 +249,45 @@ Visualization Manager:
           Size (Pixels): 2
           Size (m): 0.009999999776482582
           Style: Points
-          Topic: /vehicle_0/orb_slam2_rgbd/map_points
+          Topic: /vehicle_1/orb_slam2_rgbd/map_points
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
           Value: true
         - Class: rviz/MarkerArray
-          Enabled: true
-          Marker Topic: /vehicle_0/orb_slam2_rgbd/keyframe_pose
+          Enabled: false
+          Marker Topic: /vehicle_1/orb_slam2_rgbd/keyframe_pose
           Name: ORB KeyFrame Pose Marker
           Namespaces:
-            keyframe_pose: true
+            {}
           Queue Size: 100
-          Value: true
+          Value: false
         - Class: rviz/Group
           Displays:
             - Class: rviz/Image
-              Enabled: false
-              Image Topic: /camera/color/image_raw
+              Enabled: true
+              Image Topic: /vehicle_1/camera/color/image_raw
               Max Value: 1
               Median window: 5
               Min Value: 0
-              Name: RGB_img
+              Name: V1 RGB Image
               Normalize Range: true
               Queue Size: 2
               Transport Hint: raw
               Unreliable: false
-              Value: false
+              Value: true
             - Class: rviz/Image
-              Enabled: false
-              Image Topic: /camera/aligned_depth_to_color/image_raw
+              Enabled: true
+              Image Topic: /vehicle_1/camera/aligned_depth_to_color/image_raw
               Max Value: 1
               Median window: 5
               Min Value: 0
-              Name: Depth_img
+              Name: V1 Depth Image
               Normalize Range: true
               Queue Size: 2
               Transport Hint: raw
               Unreliable: false
-              Value: false
+              Value: true
             - Alpha: 1
               Autocompute Intensity Bounds: true
               Autocompute Value Bounds:
@@ -174,109 +298,26 @@ Visualization Manager:
               Channel Name: intensity
               Class: rviz/PointCloud2
               Color: 255; 255; 255
-              Color Transformer: RGB8
+              Color Transformer: ""
               Decay Time: 0
-              Enabled: false
+              Enabled: true
               Invert Rainbow: false
               Max Color: 255; 255; 255
               Min Color: 0; 0; 0
-              Name: Depth_PCD
-              Position Transformer: XYZ
+              Name: V1 Depth Point Cloud
+              Position Transformer: ""
               Queue Size: 10
               Selectable: true
               Size (Pixels): 3
               Size (m): 0.009999999776482582
               Style: Flat Squares
-              Topic: /camera/depth/color/points
+              Topic: /vehicle_1/camera/depth/color/points
               Unreliable: false
               Use Fixed Frame: true
               Use rainbow: true
-              Value: false
-          Enabled: true
-          Name: Realsense
-      Enabled: true
-      Name: Vehicle 0 Topics
-    - Class: rviz/Group
-      Displays:
-        - Class: rviz/Camera
-          Enabled: true
-          Image Rendering: background and overlay
-          Image Topic: /vehicle_1/orb_slam2_rgbd/debug_image
-          Name: ORB Debug Image
-          Overlay Alpha: 0.5
-          Queue Size: 2
-          Transport Hint: raw
-          Unreliable: false
-          Value: true
-          Visibility:
-            Debugging Topics:
-              Debug LC Source Pose: true
-              Debug LC Target Pose: true
-              Debug Loop Closure Aligned: true
-              Debug Loop Closure Source: true
-              Debug Loop Closure Target: true
-              KeyFrame Set Poses: true
               Value: true
-            Global Pose Graph Manager:
-              Dense Map PCD: true
-              Filtered PCD: true
-              Pose Graph Marker: true
-              Value: true
-            Grid: true
-            TF: true
-            Value: true
-            Vehicle 0 Topics:
-              ORB Debug Image: true
-              ORB KeyFrame Pose Marker: true
-              ORB Map Points: true
-              Realsense:
-                Depth_PCD: true
-                Depth_img: true
-                RGB_img: true
-                Value: true
-              Value: true
-            Vehicle 1 Topics:
-              ORB Debug Image: true
-              ORB KeyFrame Pose Marker: true
-              ORB Map Points: true
-              Value: true
-          Zoom Factor: 1
-        - Alpha: 1
-          Autocompute Intensity Bounds: true
-          Autocompute Value Bounds:
-            Max Value: 10
-            Min Value: -10
-            Value: true
-          Axis: Z
-          Channel Name: intensity
-          Class: rviz/PointCloud2
-          Color: 255; 255; 255
-          Color Transformer: ""
-          Decay Time: 0
           Enabled: true
-          Invert Rainbow: false
-          Max Color: 255; 255; 255
-          Min Color: 0; 0; 0
-          Name: ORB Map Points
-          Position Transformer: ""
-          Queue Size: 10
-          Selectable: true
-          Size (Pixels): 3
-          Size (m): 0.009999999776482582
-          Style: Flat Squares
-          Topic: /vehicle_1/orb_slam2_rgbd/map_points
-          Unreliable: false
-          Use Fixed Frame: true
-          Use rainbow: true
-          Value: true
-        - Class: rviz/MarkerArray
-          Enabled: true
-          Marker Topic: /vehicle_1/orb_slam2_rgbd/keyframe_pose
-          Name: ORB KeyFrame Pose Marker
-          Namespaces:
-            {}
-          Queue Size: 100
-          Value: true
+          Name: Sensor Data
       Enabled: true
       Name: Vehicle 1 Topics
     - Class: rviz/Group
@@ -320,8 +361,8 @@ Visualization Manager:
         - Alpha: 0.5
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
-            Max Value: 1.8231205940246582
-            Min Value: -1.126879334449768
+            Max Value: 9.229917526245117
+            Min Value: -5.370082378387451
             Value: true
           Axis: Z
           Channel Name: intensity
@@ -333,14 +374,42 @@ Visualization Manager:
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
-          Name: Dense Map PCD
+          Name: V0 Dense Map PCD
           Position Transformer: XYZ
           Queue Size: 10
           Selectable: true
           Size (Pixels): 2
           Size (m): 0.009999999776482582
           Style: Points
-          Topic: /hdl_graph_slam/map_points
+          Topic: /hdl_graph_slam/map_points_0
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: ""
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Min Color: 0; 0; 0
+          Name: V1 Dense Map PCD
+          Position Transformer: ""
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.009999999776482582
+          Style: Flat Squares
+          Topic: /hdl_graph_slam/map_points_1
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
@@ -354,7 +423,7 @@ Visualization Manager:
           Axes Radius: 0.10000000149011612
           Class: rviz/Pose
           Color: 170; 170; 255
-          Enabled: false
+          Enabled: true
           Head Length: 0.30000001192092896
           Head Radius: 0.10000000149011612
           Name: Debug LC Source Pose
@@ -364,13 +433,13 @@ Visualization Manager:
           Shape: Arrow
           Topic: /hdl_graph_slam/debug/loop_closure_source_pose
           Unreliable: false
-          Value: false
+          Value: true
         - Alpha: 1
           Axes Length: 1
           Axes Radius: 0.10000000149011612
           Class: rviz/Pose
           Color: 255; 0; 127
-          Enabled: false
+          Enabled: true
           Head Length: 0.30000001192092896
           Head Radius: 0.10000000149011612
           Name: Debug LC Target Pose
@@ -380,7 +449,7 @@ Visualization Manager:
           Shape: Arrow
           Topic: /hdl_graph_slam/debug/loop_closure_target_pose
           Unreliable: false
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -393,7 +462,7 @@ Visualization Manager:
           Color: 255; 255; 255
           Color Transformer: FlatColor
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -408,7 +477,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -421,7 +490,7 @@ Visualization Manager:
           Color: 170; 170; 255
           Color Transformer: FlatColor
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -436,7 +505,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Alpha: 1
           Autocompute Intensity Bounds: true
           Autocompute Value Bounds:
@@ -449,7 +518,7 @@ Visualization Manager:
           Color: 255; 0; 127
           Color Transformer: FlatColor
           Decay Time: 0
-          Enabled: false
+          Enabled: true
           Invert Rainbow: false
           Max Color: 255; 255; 255
           Min Color: 0; 0; 0
@@ -464,7 +533,7 @@ Visualization Manager:
           Unreliable: false
           Use Fixed Frame: true
           Use rainbow: true
-          Value: false
+          Value: true
         - Class: rviz/MarkerArray
           Enabled: false
           Marker Topic: /orb_slam2_rgbd/keyframe_pose
@@ -475,6 +544,46 @@ Visualization Manager:
           Value: false
       Enabled: true
       Name: Debugging Topics
+    - Class: rviz/Image
+      Enabled: true
+      Image Topic: /vehicle_1/orb_slam2_rgbd/debug_image
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Image
+      Normalize Range: true
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: true
+    - Alpha: 0.5
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: KF Point Cloud
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 4
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /hdl_graph_slam/debug/keyframe_pcd
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -503,7 +612,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 11.103660583496094
+      Distance: 6.698429107666016
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -511,39 +620,45 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -0.042282044887542725
-        Y: -0.20870327949523926
-        Z: 0.5415045022964478
+        X: -0.2279694378376007
+        Y: 0.8574865460395813
+        Z: 0.35762399435043335
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.434796690940857
-      Target Frame: base_link
-      Yaw: 3.079174280166626
+      Pitch: 1.494795799255371
+      Target Frame: vehicle_0/orb_slam2_rgbd/base_link
+      Yaw: 4.727214813232422
     Saved: ~
 Window Geometry:
-  Depth_img:
-    collapsed: false
   Displays:
     collapsed: false
-  Height: 1281
+  Height: 1278
   Hide Left Dock: false
   Hide Right Dock: false
-  ORB Debug Image:
+  Image:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd000000040000000000000307000004abfc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afc0000003b000003c5000000e20100001afa000000000100000002fb000000100044006900730070006c0061007900730100000000000001560000015600fffffffb0000000a005600690065007700730100000000ffffffff0000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb0000000800540069006d00650100000406000000e00000003700ffffff000000010000019e000004abfc0200000006fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000e005200470042005f0069006d0067000000003b000001620000001600fffffffb0000001e004f0052004200200044006500620075006700200049006d006100670065010000003b000002740000001600fffffffb0000001e004f0052004200200044006500620075006700200049006d00610067006501000002b5000002310000001600fffffffb0000001200440065007000740068005f0069006d00670000000299000002090000001600fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007c90000003efc0100000001fb0000000800540069006d0065010000000000000450000000000000000000000318000004ab00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
-  RGB_img:
-    collapsed: false
+  QMainWindow State: 000000ff00000000fd000000040000000000000307000004a8fc020000000bfb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb0000001800560030002000520047004200200049006d006100670065010000003b000000e70000001600fffffffb0000001c0056003000200044006500700074006800200049006d0061006700650100000128000000d80000001600fffffffb00000024005600300020004f0052004200200044006500620075006700200049006d0061006700650100000206000000e80000001600fffffffc000002f4000001ef000000e20100001afa000000010100000003fb0000000800540069006d00650100000000ffffffff0000030700fffffffb000000100044006900730070006c0061007900730100000000ffffffff0000015600fffffffb0000000a005600690065007700730100000000000003290000010000fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c000002610000000100000298000004a8fc0200000009fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000001800560031002000520047004200200049006d006100670065010000003b000000af0000001600fffffffb0000001c0056003100200044006500700074006800200049006d00610067006501000000f0000001da0000001600fffffffb0000000a0049006d00610067006501000002d0000002130000001600fffffffb00000024005600310020004f0052004200200044006500620075006700200049006d0061006700650000000229000003150000000000000000fb0000001200530065006c0065006300740069006f006e010000025a000000b20000000000000000fb0000000e005200470042005f0069006d006700000004f0000000160000000000000000fb0000001200440065007000740068005f0069006d0067000000050c000000160000000000000000fb0000001a004f00520042005f00640065006200750067005f0069006d006700000005280000001600000000000000000000000200000a21000000c7fc0100000001fb0000000a00560069006500770073030000004e00000080000002e1000001970000000300000a210000003efc0100000001fb0000000800540069006d006501000000000000045000000000000000000000058d000004a800000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
     collapsed: false
   Tool Properties:
     collapsed: false
+  V0 Depth Image:
+    collapsed: false
+  V0 ORB Debug Image:
+    collapsed: false
+  V0 RGB Image:
+    collapsed: false
+  V1 Depth Image:
+    collapsed: false
+  V1 RGB Image:
+    collapsed: false
   Views:
     collapsed: false
-  Width: 1993
-  X: 290
-  Y: 423
+  Width: 2872
+  X: -27
+  Y: -30

@@ -86,8 +86,8 @@ namespace hdl_graph_slam
     debug_ndt_scan_arrow_marker_pub    = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan_arrow", 1, true);
     debug_ndt_scan_marker_pub          = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_scan", 1, true);
     debug_ndt_map_marker_pub           = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/ndt_map", 1, true);
-    debug_loop_closure_sub_map_pub     = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/loop_closure_sub_map", 1, true);
     all_keyframe_pose_publisher_       = nh_.advertise<visualization_msgs::MarkerArray>("/hdl_graph_slam/debug/all_keyframe_pose_gpo", 1, true);
+    keyframe_pcd_pub_                   = nh_.advertise<sensor_msgs::PointCloud2>("/hdl_graph_slam/debug/keyframe_pcd", 1, true);
 
     /* Variables for NDT things */
     leaf_voxel_size_    = nh_.param<double>("global_pose_graph_manager/leaf_voxel_size", 0.5);
@@ -153,7 +153,6 @@ namespace hdl_graph_slam
     std::cout << "Got you Keyframe" << std::endl;
     const ros::Time &stamp       = keyframe_msg.header.stamp;
     Eigen::Isometry3d odom = pose2isometry(keyframe_msg.Pose);
-    
     // Get Point Cloud Data
     pcl::PointCloud<PointC>::Ptr cloud(new pcl::PointCloud<PointC>());
     pcl::fromROSMsg(keyframe_msg.PointCloud, *cloud);
@@ -172,8 +171,8 @@ namespace hdl_graph_slam
 
     pcl::PointCloud<PointC>::Ptr transformed(new pcl::PointCloud<PointC>());
     pcl_ros::transformPointCloud(*cloud, *transformed, transform);
+    keyframe_pcd_pub_.publish(transformed);
     transformed->header.frame_id = vehicle_base_link_name;
-    
 
     // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
     if (!keyframe_updater->update(odom)) 
@@ -536,7 +535,7 @@ namespace hdl_graph_slam
 
     // Target PointCloud
     sensor_msgs::PointCloud2Ptr cloud_msg_target(new sensor_msgs::PointCloud2());
-    pcl::toROSMsg(*loop->key1->cloud_c, *cloud_msg_target);
+    pcl::toROSMsg(*loop->key1->cloud_t, *cloud_msg_target);
     if(use_submap_loop_)
       cloud_msg_target->header.frame_id = "map";
     else
@@ -545,7 +544,7 @@ namespace hdl_graph_slam
     debug_loop_closer_target_pub.publish(cloud_msg_target);
     // Source PointCloud
     sensor_msgs::PointCloud2Ptr cloud_msg_source(new sensor_msgs::PointCloud2());
-    pcl::toROSMsg(*loop->key2->cloud_c, *cloud_msg_source);
+    pcl::toROSMsg(*loop->key2->cloud_t, *cloud_msg_source);
     cloud_msg_source->header.frame_id = "debug_loop_closure_source_pose";
     cloud_msg_source->header.stamp = ros::Time::now();
     debug_loop_closer_source_pub.publish(cloud_msg_source);

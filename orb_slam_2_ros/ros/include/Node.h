@@ -71,7 +71,6 @@ class Node
     void Update (); // 매 Callback의 마지막에 호출되는 함수
     ORB_SLAM2::System* orb_slam_;  // ORB_SLAM2의 System 클래스의 포인터
     ros::Time current_frame_time_; // 현재 프레임의 시간
-
     std::string camera_info_topic_;
 
   private:
@@ -123,6 +122,7 @@ class Node
     ros::Publisher status_gba_publisher_;
     ros::Publisher all_keyframe_pose_publisher_; // New Debuging Feature
     ros::Publisher Keyframe_publisher_; // YR
+    ros::Publisher keyframe_point_cloud_pub; // Debuging Feature
 
     ros::ServiceServer service_server_;
     ros::ServiceClient updated_keyframe_client_; // YR

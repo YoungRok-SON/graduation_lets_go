@@ -747,13 +747,13 @@ pcl::PointCloud<PointT>::Ptr Frame::ApplyPCDFilter(pcl::PointCloud<PointT>::Ptr 
     // Distance filter
     pcl::PassThrough<PointT> pass;
     pass.setInputCloud (cloud);
-    pass.setFilterFieldName ("x");
+    pass.setFilterFieldName ("z"); // point cloud input Z axis was forward damn.
     pass.setFilterLimits (min_x, max_x);
     pass.filter (*cloud_filtered);
 
     // Voxel Grid filter
     pcl::VoxelGrid<PointT> sor;
-    sor.setInputCloud (cloud_filtered);
+    sor.setInputCloud (cloud);
     sor.setLeafSize (voxel_size, voxel_size, voxel_size);
     sor.filter (*cloud_filtered);
 

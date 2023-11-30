@@ -47,9 +47,9 @@ void Node::Init () {
   std::cout << "camera_frame_id_param_: " << camera_frame_id_param_ << std::endl;
   std::cout << "target_frame_id_param_: " << target_frame_id_param_ << std::endl;
 
-   // Create a parameters object to pass to the Tracking system
-   ORB_SLAM2::ORBParameters parameters;
-   LoadOrbParameters (parameters);
+  // Create a parameters object to pass to the Tracking system
+  ORB_SLAM2::ORBParameters parameters;
+  LoadOrbParameters (parameters);
 
   orb_slam_ = new ORB_SLAM2::System (voc_file_name_param_, sensor_, parameters, map_file_name_param_, load_map_param_);
 
@@ -80,6 +80,7 @@ void Node::Init () {
  
   // srv
   updated_keyframe_client_ = node_handle_.serviceClient<keyframe_msgs::updatedKeyFrame>("/updated_keyframes");
+  keyframe_point_cloud_pub = node_handle_.advertise<sensor_msgs::PointCloud2>("debug/keyframe_point_cloud", 1);
 }
 
 // Node update and publish
@@ -222,8 +223,13 @@ void Node::PublishKeyFrameData()
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
     cloud = pKF->GetPointCloud();
     pcl::toROSMsg(*cloud, kf_msg.PointCloud);
+    kf_msg.PointCloud.header.frame_id = target_frame_id_param_;
 
     Keyframe_publisher_.publish(kf_msg);
+    if ( keyframe_point_cloud_pub.getNumSubscribers() > 0)
+    {
+      keyframe_point_cloud_pub.publish(kf_msg.PointCloud);
+    }
   }
 }
 

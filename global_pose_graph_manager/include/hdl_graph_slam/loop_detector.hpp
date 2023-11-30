@@ -52,7 +52,7 @@ namespace hdl_graph_slam
       fitness_score_thresh = pnh.param<double>("global_pose_graph_manager/fitness_score_thresh", 0.5);
 
       /* New Feature */
-      use_submap_loop_         = pnh.param<bool>("global_pose_graph_manager/use_submap_loop", false);
+      use_submap_loop_         = pnh.param<bool>("global_pose_graph_manager/use_submap_loop", true);
       nr_submap_keyframe_      = pnh.param<int>("global_pose_graph_manager/nr_submap_keyframe", 8);
       map_cloud_resolution_    = pnh.param<double>("global_pose_graph_manager/map_cloud_resolution", 0.05);
       distance_far_th_         = pnh.param<double>("global_pose_graph_manager/distance_near_thresh", 0.5);

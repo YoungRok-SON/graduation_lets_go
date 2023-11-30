@@ -39,9 +39,9 @@
     <param name="fix_first_node" value="true"/>
     <param name="fix_first_node_stddev" value="0.01 0.01 0.01 0.1 0.1 0.1"/>
     <!-- loop closure params -->
-    <param name="distance_thresh" value="1.0" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
-    <param name="accum_distance_thresh" value="10.0" />
-    <param name="min_edge_interval" value="10.0" />
+    <param name="distance_thresh" value="0.5" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
+    <param name="accum_distance_thresh" value="3.0" />
+    <param name="min_edge_interval" value="3.0" />
     <param name="fitness_score_thresh" value="0.3" /> <!-- 낮을수록 매칭 잘 된 거 -->
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
@@ -49,11 +49,11 @@
     <param name="reg_num_threads" value="8" />
     <param name="reg_transformation_epsilon" value="0.05"/>
     <param name="reg_maximum_iterations" value="64"/>
-    <param name="reg_max_correspondence_distance" value="0.4"/>
+    <param name="reg_max_correspondence_distance" value="2"/> <!--원래는 0.4 -->
     <param name="reg_max_optimizer_iterations" value="20"/>
     <param name="reg_use_reciprocal_correspondences" value="false"/>
     <param name="reg_correspondence_randomness" value="20"/>
-    <param name="reg_resolution" value="0.4" /> <!-- ndt resolution은 이걸로 설정 -->
+    <param name="reg_resolution" value="0.5" /> <!-- ndt resolution은 이걸로 설정 -->
     <param name="reg_nn_search_method" value="DIRECT7" />
     <!-- edge params -->
 
