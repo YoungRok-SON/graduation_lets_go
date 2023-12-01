@@ -175,16 +175,16 @@ namespace hdl_graph_slam
       // Get possible front and back number of accessible keyframes.
       int accessible_front = closest_keyframe_idx - nr_submap_keyframe_;
       int accessible_back = closest_keyframe_idx + nr_submap_keyframe_;
-      target_keyframe_idx_ = nr_submap_keyframe_; // normal state
+      target_keyframe_idx_ = nr_submap_keyframe_ - 1; // normal state
       if( accessible_front < 0 ) // not enough front keyframes
       {
         target_keyframe_idx_ = nr_submap_keyframe_ + accessible_front; 
         accessible_front = 0;
       }
-      if( accessible_back > keyframes.size() ) // not enough back keyframes
+      if( accessible_back > keyframes.size() - 1 ) // not enough back keyframes
       {
-        target_keyframe_idx_ = accessible_back - nr_submap_keyframe_; 
-        accessible_back = keyframes.size();
+        target_keyframe_idx_ = accessible_back - nr_submap_keyframe_ - accessible_front; 
+        accessible_back = keyframes.size() - 1;
       }
       ROS_INFO("keyframe size: %ld", keyframes.size());
       ROS_INFO("accessible_front Idx: %d", accessible_front);
@@ -192,9 +192,11 @@ namespace hdl_graph_slam
       ROS_INFO("Target Keyframe Idx: %d", target_keyframe_idx_);
       // Get a Submap accessible keyframes which is orientation is similar to the new_keyframe.
       const auto &pos2 = new_keyframe->node->estimate().rotation();
-      for (int i = accessible_front; i < accessible_back; i++)
+      std::cout <<"work?"<< std::endl;
+      for (int i = accessible_front; i <= accessible_back; i++)
       {        
         candidates.push_back(keyframes[i]);
+        std::cout <<"work? : "<< i << std::endl;
       }
 
       // To Do

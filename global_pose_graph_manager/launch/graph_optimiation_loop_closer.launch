@@ -37,19 +37,19 @@
     <param name="keyframe_delta_angle" value="0.261799" />  <!-- Radian-Default: 2.0 / 0.523599Rad=30Deg, 0.349066Rad=20Deg / 0.261799Rad=15Deg-->
     <!-- fix first node for optimization stability -->
     <param name="fix_first_node" value="true"/>
-    <param name="fix_first_node_stddev" value="0.01 0.01 0.01 0.1 0.1 0.1"/>
+    <param name="fix_first_node_stddev" value="0.001 0.001 0.001 0.001 0.001 0.001"/>
     <!-- loop closure params -->
-    <param name="distance_thresh" value="0.5" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
-    <param name="accum_distance_thresh" value="3.0" />
-    <param name="min_edge_interval" value="3.0" />
-    <param name="fitness_score_thresh" value="0.3" /> <!-- 낮을수록 매칭 잘 된 거 -->
+    <param name="distance_thresh" value="2" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
+    <param name="accum_distance_thresh" value="10" />
+    <param name="min_edge_interval" value="3" />
+    <param name="fitness_score_thresh" value="0.1" /> <!-- 낮을수록 매칭 잘 된 거 -->
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />
     <param name="reg_num_threads" value="8" />
     <param name="reg_transformation_epsilon" value="0.05"/>
     <param name="reg_maximum_iterations" value="64"/>
-    <param name="reg_max_correspondence_distance" value="2"/> <!--원래는 0.4 -->
+    <param name="reg_max_correspondence_distance" value="0.4"/> <!--원래는 0.4 -->
     <param name="reg_max_optimizer_iterations" value="20"/>
     <param name="reg_use_reciprocal_correspondences" value="false"/>
     <param name="reg_correspondence_randomness" value="20"/>
@@ -64,8 +64,8 @@
     <param name="loop_closure_edge_robust_kernel" value="Huber" />
     <param name="loop_closure_edge_robust_kernel_size" value="1.0" />
     <param name="use_const_inf_matrix" value="false" />
-    <param name="const_stddev_x" value="0.05" />
-    <param name="const_stddev_q" value="0.1" />
+    <param name="const_stddev_x" value="0.01" />
+    <param name="const_stddev_q" value="0.02" />
     <param name="var_gain_a" value="20.0" />
     <param name="min_stddev_x" value="0.1" />
     <param name="max_stddev_x" value="5.0" />
@@ -77,7 +77,7 @@
     <param name="map_cloud_resolution" value="0.05" />
   </node>
 
-  <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" />
+  <!-- <node pkg="hdl_graph_slam" type="map2odom_publisher.py" name="map2odom_publisher" /> -->
 
   <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(env HOME)/graduate_ws/src/graduation_lets_go/global_pose_graph_manager/hdl_test.rviz"/> -->
   

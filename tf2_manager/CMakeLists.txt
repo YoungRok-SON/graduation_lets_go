@@ -9,7 +9,6 @@ project(tf2_manager)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  rospy
   std_msgs
   tf2_ros
 )
@@ -106,7 +105,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES tf2_manager
-  CATKIN_DEPENDS roscpp rospy std_msgs tf2
+  CATKIN_DEPENDS roscpp std_msgs tf2
 #  DEPENDS system_lib
 )
 

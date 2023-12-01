@@ -105,10 +105,10 @@ namespace hdl_graph_slam
     std::cout << "Number of Vehicles: " << num_vehicle_ << std::endl;
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-    // Publishers
+    mv_trans_odom2map.resize(num_vehicle_);
     for (int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
     {
+      mv_trans_odom2map[vehicle_num].setIdentity();
       std::string odom2map_topic = "/hdl_graph_slam/odom2map_" + std::to_string(vehicle_num);
       odom2map_pubs.push_back(nh_.advertise<geometry_msgs::TransformStamped>(odom2map_topic, 16));
 
@@ -129,9 +129,6 @@ namespace hdl_graph_slam
     keyframe_queues.resize(num_vehicle_); // 기체 수만큼 큐를 벡터에 생성
     mvdKFs_new.resize(num_vehicle_);
     mvvKFs.resize(num_vehicle_);
-    mv_trans_odom2map.resize(num_vehicle_);
-    for (auto &odom2map_tf : mv_trans_odom2map)
-      odom2map_tf.setIdentity();
     mvvKF_snapshots.resize(num_vehicle_);
 
     optimization_thread =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::optimization_timer_callback, this);
@@ -175,11 +172,11 @@ namespace hdl_graph_slam
     transformed->header.frame_id = vehicle_base_link_name;
 
     // 이전 keyframe과의 거리 계산을 통해 짧으면 false, 길면 true
-    if (!keyframe_updater->update(odom)) 
+    if (!keyframe_updater->update(odom, vehicle_id)) 
       return;
 
     // Create Keyframe object
-    double accum_d = keyframe_updater->get_accum_distance();
+    double accum_d = keyframe_updater->get_accum_distance(vehicle_id);
     KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, transformed, keyframe_id, vehicle_id));
 
     std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
@@ -216,9 +213,8 @@ namespace hdl_graph_slam
       bool keyframe_updated = flush_keyframe_queue(); // for local optimization
       for(int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
       {
-        if (mvvKFs[vehicle_num].empty())
-          continue;
-        std::cout << "Vehicle Num: " << vehicle_num << "Updated Node: " << mvvKFs[vehicle_num].size() << "\n" << std::flush;
+        if (!mvvKFs[vehicle_num].empty())
+          std::cout << "Vehicle Num: " << vehicle_num << "Updated Node: " << mvvKFs[vehicle_num].size() << "\n" << std::flush;
       }
 
       if (!keyframe_updated)
@@ -241,6 +237,8 @@ namespace hdl_graph_slam
           {
             Eigen::Isometry3d relpose(loop->relative_pose.cast<double>());
             Eigen::MatrixXd information_matrix = inf_calclator->calc_information_matrix(loop->key1->cloud_t, loop->key2->cloud_t, relpose);
+            std::cout << "----------------------loop closure inf matrix -----------------------" << std::endl
+            << information_matrix << std::endl << std::endl << std::endl;
             auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix);
             
             graph_slam->add_robust_kernel(edge, nh_.param<std::string>("global_pose_graph_manager/loop_closure_edge_robust_kernel", "NONE"), nh_.param<double>("global_pose_graph_manager/loop_closure_edge_robust_kernel_size", 1.0));
@@ -268,8 +266,8 @@ namespace hdl_graph_slam
         if(mvvKFs[vehicle_num].empty())
           continue;
         const auto &keyframe = mvvKFs[vehicle_num].back();
-        Eigen::Isometry3d trans = keyframe->node->estimate() * keyframe->odom.inverse(); // 이건 어떤 값? -> 오도메트리와 계산된 그래프를 기반으로 최적화된 위치 결과 사이의 변환, 결국 누적 오차 없에는 역할
-        mv_trans_odom2map[vehicle_num] = trans.matrix().cast<float>(); // 이 값은 왜 이렇게 해놓지?-> 다음  keyframe이 들어올 때 이전 keyframe과의 차이를 계산하기 위해서
+        Eigen::Isometry3d trans = keyframe->node->estimate() * keyframe->odom.inverse();   // 이건 어떤 값? -> 오도메트리와 계산된 그래프를 기반으로 최적화된 위치 결과 사이의 변환, 결국 누적 오차 없에는 역할
+        mv_trans_odom2map[vehicle_num] = trans.matrix().cast<float>();                     // 이 값은 왜 이렇게 해놓지?-> 다음  keyframe이 들어올 때 이전 keyframe과의 차이를 계산하기 위해서
       }
       trans_odom2map_mutex.unlock();
       std::cout << " trans_odom2map Done " << "\n" << std::flush;
@@ -324,7 +322,7 @@ namespace hdl_graph_slam
     // check whether the queue is empty
     bool element_exist = false;
     std::lock_guard<std::mutex> lock(keyframe_queue_mutex);
-    for (int vehicle_idx = 0; vehicle_idx < keyframe_queues.size(); vehicle_idx++)
+    for (int vehicle_idx = 0; vehicle_idx < num_vehicle_; vehicle_idx++)
     {
       
       if (!keyframe_queues[vehicle_idx].empty())
@@ -351,16 +349,15 @@ namespace hdl_graph_slam
             if (nh_.param<bool>("global_pose_graph_manager/fix_first_node", false))
             {
               Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
+              std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/fix_first_node_stddev", "1 1 1 1 1 1"));
+              for (int i = 0; i < 6; i++)
+              {
+                double stddev = 1.0;
+                sst >> stddev;
+                inf(i, i) = 1.0 / stddev;
+              }
               if ( !anchor_established )
               {
-                std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/fix_first_node_stddev", "1 1 1 1 1 1"));
-                for (int i = 0; i < 6; i++)
-                {
-                  double stddev = 1.0;
-                  sst >> stddev;
-                  inf(i, i) = 1.0 / stddev;
-                }
-
                 anchor_node = graph_slam->add_se3_node(Eigen::Isometry3d::Identity()); 
                 anchor_node->setFixed(true);  // 고정
                 anchor_established = true;
@@ -391,8 +388,13 @@ namespace hdl_graph_slam
           Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
           inf.topLeftCorner(3, 3).array() /= stddev_x*stddev_x;     // need to be increased by Uncertainty increase
           inf.bottomRightCorner(3, 3).array() /= stddev_q*stddev_q; // need to be increased by Uncertainty increase
-          std::cout << "Information Matrix Calculated. " << inf << std::endl;
-
+          std::cout << "Information Matrix Calculated. " << std::endl << inf << std::endl;
+          stddev_x += 0.0001;
+          stddev_q += 0.001; 
+          if(stddev_x > 0.2)
+              stddev_x = 0.2;
+          if(stddev_q > 0.2)
+              stddev_q = 0.2;
           // 연결된 두 포즈 사이의 에지를 추가
           auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, inf);
           // Robust Kernel 추가
@@ -661,6 +663,8 @@ namespace hdl_graph_slam
       sphere_marker.color.r = 1.0;
       sphere_marker.color.a = 0.3;
       }
+    std::cout  << "Global Pose Graph Marker Published" << std::endl;
+
     return markers;
   }
 
@@ -861,105 +865,108 @@ namespace hdl_graph_slam
 
   void HdlGraphSlamNode::PublishKeyFramePose( ) 
   {
-    if (mvvKFs[0].empty())
-    {
-      ROS_WARN("Keyframe vector is empty!");
-      return;
-    }
-
-    
-    // Generate 3 arrows for each keyframe
     visualization_msgs::MarkerArray marker_array;
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = map_frame_id;
-    marker.header.stamp = mvvKFs[0].back()->stamp;
-    marker.ns = "keyframe_pose";
-    marker.type = visualization_msgs::Marker::ARROW;
-    marker.action = visualization_msgs::Marker::ADD;
-    marker.lifetime = ros::Duration(0.0);
-
-
-    for ( auto it = mvvKFs[0].begin(); it != mvvKFs[0].end(); it++) 
+    for (int vehicle_num = 0; vehicle_num < num_vehicle_; vehicle_num++)
     {
-
-      // Get the keyframe
-      KeyFrame::Ptr pKF = *it;
-
-      // Get pose
-      auto pose = pKF->node->estimate();
-
-      // Iso3d -> tf2
-      Eigen::Vector3d position_vec_eigen = pose.translation();
-      Eigen::Quaterniond orientation_quat_eigen(pose.rotation());
-      tf2::Vector3 position_vec(position_vec_eigen.x(), position_vec_eigen.y(), position_vec_eigen.z());
-      tf2::Quaternion orientation_quat(orientation_quat_eigen.x(), orientation_quat_eigen.y(), orientation_quat_eigen.z(), orientation_quat_eigen.w());
+      if (mvvKFs[vehicle_num].empty())
+      {
+        ROS_WARN("Keyframe vector is empty!");
+        return;
+      }
 
       
-      // Create the x, y, and z arrows
-      visualization_msgs::Marker x_arrow = marker;
-      x_arrow.id = (pKF)->keyframe_id * 3;
-      x_arrow.pose.position.x = position_vec.x();
-      x_arrow.pose.position.y = position_vec.y();
-      x_arrow.pose.position.z = position_vec.z();
-      x_arrow.pose.orientation.x = orientation_quat.x();
-      x_arrow.pose.orientation.y = orientation_quat.y();
-      x_arrow.pose.orientation.z = orientation_quat.z();
-      x_arrow.pose.orientation.w = orientation_quat.w();
-      x_arrow.scale.x = 0.2;
-      x_arrow.scale.y = 0.01;
-      x_arrow.scale.z = 0.01;
-      x_arrow.color.r = 1.0;
-      x_arrow.color.g = 0.0;
-      x_arrow.color.b = 0.0;
-      x_arrow.color.a = 1.0;
+      // Generate 3 arrows for each keyframe
+      visualization_msgs::Marker marker;
+      marker.header.frame_id = map_frame_id;
+      marker.header.stamp = mvvKFs[vehicle_num].back()->stamp;
+      marker.ns = "keyframe_pose";
+      marker.type = visualization_msgs::Marker::ARROW;
+      marker.action = visualization_msgs::Marker::ADD;
+      marker.lifetime = ros::Duration(0.0);
 
-      // Create the y axis arrow by rotate the x axis arrow
-      visualization_msgs::Marker y_arrow = marker;
-      y_arrow.id = pKF->keyframe_id * 3 + 1;
-      y_arrow.pose.position.x = position_vec.x();
-      y_arrow.pose.position.y = position_vec.y();
-      y_arrow.pose.position.z = position_vec.z();
-      // Rotate axis by 90 degrees around z axis of x_arrow
-      tf2::Quaternion y_quat;
-      y_quat.setRPY(0, 0, M_PI/2);
-      tf2::Quaternion y_axis = orientation_quat * y_quat;
-      y_arrow.pose.orientation.x = y_axis.x();
-      y_arrow.pose.orientation.y = y_axis.y();
-      y_arrow.pose.orientation.z = y_axis.z();
-      y_arrow.pose.orientation.w = y_axis.w();
-      y_arrow.scale.x = 0.2;
-      y_arrow.scale.y = 0.01;
-      y_arrow.scale.z = 0.01;
-      y_arrow.color.r = 0.0;
-      y_arrow.color.g = 1.0;
-      y_arrow.color.b = 0.0;
-      y_arrow.color.a = 1.0;
 
-      // Cretae the z axis arrow by rotating the x axis arrow
-      visualization_msgs::Marker z_arrow = marker;
-      z_arrow.id = pKF->keyframe_id * 3 + 2;
-      z_arrow.pose.position.x = position_vec.x();
-      z_arrow.pose.position.y = position_vec.y();
-      z_arrow.pose.position.z = position_vec.z();
-      tf2::Quaternion z_quat;
-      z_quat.setRPY(0, -M_PI/2, 0);
-      tf2::Quaternion z_axis = orientation_quat * z_quat;
-      z_arrow.pose.orientation.x = z_axis.x();
-      z_arrow.pose.orientation.y = z_axis.y();
-      z_arrow.pose.orientation.z = z_axis.z();
-      z_arrow.pose.orientation.w = z_axis.w();
-      z_arrow.scale.x = 0.2;
-      z_arrow.scale.y = 0.01;
-      z_arrow.scale.z = 0.01;
-      z_arrow.color.r = 0.0;
-      z_arrow.color.g = 0.0;
-      z_arrow.color.b = 1.0;
-      z_arrow.color.a = 1.0;
-      
-      // Add the arrows to the marker array
-      marker_array.markers.push_back(x_arrow);
-      marker_array.markers.push_back(y_arrow);
-      marker_array.markers.push_back(z_arrow);
+      for ( auto it = mvvKFs[vehicle_num].begin(); it != mvvKFs[vehicle_num].end(); it++) 
+      {
+
+        // Get the keyframe
+        KeyFrame::Ptr pKF = *it;
+
+        // Get pose
+        auto pose = pKF->node->estimate();
+
+        // Iso3d -> tf2
+        Eigen::Vector3d position_vec_eigen = pose.translation();
+        Eigen::Quaterniond orientation_quat_eigen(pose.rotation());
+        tf2::Vector3 position_vec(position_vec_eigen.x(), position_vec_eigen.y(), position_vec_eigen.z());
+        tf2::Quaternion orientation_quat(orientation_quat_eigen.x(), orientation_quat_eigen.y(), orientation_quat_eigen.z(), orientation_quat_eigen.w());
+
+        
+        // Create the x, y, and z arrows
+        visualization_msgs::Marker x_arrow = marker;
+        x_arrow.id = (pKF)->keyframe_id * 3;
+        x_arrow.pose.position.x = position_vec.x();
+        x_arrow.pose.position.y = position_vec.y();
+        x_arrow.pose.position.z = position_vec.z();
+        x_arrow.pose.orientation.x = orientation_quat.x();
+        x_arrow.pose.orientation.y = orientation_quat.y();
+        x_arrow.pose.orientation.z = orientation_quat.z();
+        x_arrow.pose.orientation.w = orientation_quat.w();
+        x_arrow.scale.x = 0.2;
+        x_arrow.scale.y = 0.01;
+        x_arrow.scale.z = 0.01;
+        x_arrow.color.r = 1.0;
+        x_arrow.color.g = 0.0;
+        x_arrow.color.b = 0.0;
+        x_arrow.color.a = 1.0;
+
+        // Create the y axis arrow by rotate the x axis arrow
+        visualization_msgs::Marker y_arrow = marker;
+        y_arrow.id = pKF->keyframe_id * 3 + 1;
+        y_arrow.pose.position.x = position_vec.x();
+        y_arrow.pose.position.y = position_vec.y();
+        y_arrow.pose.position.z = position_vec.z();
+        // Rotate axis by 90 degrees around z axis of x_arrow
+        tf2::Quaternion y_quat;
+        y_quat.setRPY(0, 0, M_PI/2);
+        tf2::Quaternion y_axis = orientation_quat * y_quat;
+        y_arrow.pose.orientation.x = y_axis.x();
+        y_arrow.pose.orientation.y = y_axis.y();
+        y_arrow.pose.orientation.z = y_axis.z();
+        y_arrow.pose.orientation.w = y_axis.w();
+        y_arrow.scale.x = 0.2;
+        y_arrow.scale.y = 0.01;
+        y_arrow.scale.z = 0.01;
+        y_arrow.color.r = 0.0;
+        y_arrow.color.g = 1.0;
+        y_arrow.color.b = 0.0;
+        y_arrow.color.a = 1.0;
+
+        // Cretae the z axis arrow by rotating the x axis arrow
+        visualization_msgs::Marker z_arrow = marker;
+        z_arrow.id = pKF->keyframe_id * 3 + 2;
+        z_arrow.pose.position.x = position_vec.x();
+        z_arrow.pose.position.y = position_vec.y();
+        z_arrow.pose.position.z = position_vec.z();
+        tf2::Quaternion z_quat;
+        z_quat.setRPY(0, -M_PI/2, 0);
+        tf2::Quaternion z_axis = orientation_quat * z_quat;
+        z_arrow.pose.orientation.x = z_axis.x();
+        z_arrow.pose.orientation.y = z_axis.y();
+        z_arrow.pose.orientation.z = z_axis.z();
+        z_arrow.pose.orientation.w = z_axis.w();
+        z_arrow.scale.x = 0.2;
+        z_arrow.scale.y = 0.01;
+        z_arrow.scale.z = 0.01;
+        z_arrow.color.r = 0.0;
+        z_arrow.color.g = 0.0;
+        z_arrow.color.b = 1.0;
+        z_arrow.color.a = 1.0;
+        
+        // Add the arrows to the marker array
+        marker_array.markers.push_back(x_arrow);
+        marker_array.markers.push_back(y_arrow);
+        marker_array.markers.push_back(z_arrow);
+      }
     }
 
     // Publish the marker array

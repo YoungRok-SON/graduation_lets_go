@@ -32,6 +32,7 @@ Node::~Node ()
  */
 void Node::Init () {
   //static parameters
+  node_handle_.param(name_of_node_+ "/vehicle_num", vehicle_number_, 99);
   node_handle_.param(name_of_node_+ "/publish_pointcloud", publish_pointcloud_param_, true);
   node_handle_.param(name_of_node_+ "/publish_pose", publish_pose_param_, true);
   node_handle_.param(name_of_node_+ "/publish_tf", publish_tf_param_, true);
@@ -166,7 +167,7 @@ bool Node::CallUpdatedKeyFrameService( )
       srv.request.poses[i].orientation.w = orientation_quat.w();
 
       srv.request.keyframe_ids[i] = keyframes[i]->mnId;
-      srv.request.vehicle_number = 1;
+      srv.request.vehicle_number = vehicle_number_; 
     }
     
     // call service and check request
@@ -210,7 +211,7 @@ void Node::PublishKeyFrameData()
 
     kf_msg.header.stamp = ros::Time( pKF->mTimeStamp );
     kf_msg.header.frame_id = map_frame_id_param_;
-    kf_msg.vehicle_id = 0;
+    kf_msg.vehicle_id = vehicle_number_;
     kf_msg.id = pKF->mnId;
     kf_msg.Pose.position.x = position_vec.x();
     kf_msg.Pose.position.y = position_vec.y();

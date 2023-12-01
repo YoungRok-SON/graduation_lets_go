@@ -20,12 +20,20 @@ public:
    * @brief constructor
    * @param pnh
    */
-  KeyframeUpdater(ros::NodeHandle& pnh) : is_first(true), prev_keypose(Eigen::Isometry3d::Identity()) 
+  KeyframeUpdater(ros::NodeHandle& pnh) 
   {
     keyframe_delta_trans = pnh.param<double>("global_pose_graph_manager/keyframe_delta_trans", 2.0);
     keyframe_delta_angle = pnh.param<double>("global_pose_graph_manager/keyframe_delta_angle", 2.0);
-
-    accum_distance = 0.0;
+    vehicle_num_         = pnh.param<int>("global_pose_graph_manager/vehicle_num", 2);
+    vec_accumulated_distance_.resize(vehicle_num_);
+    vec_prev_keypose_.resize(vehicle_num_);
+    is_first_.resize(vehicle_num_);
+    for (size_t vehicle_idx = 0; vehicle_idx < vehicle_num_; vehicle_idx++)
+    {
+      vec_accumulated_distance_[vehicle_idx] = 0.0;
+      vec_prev_keypose_[vehicle_idx] = Eigen::Isometry3d::Identity();
+      is_first_[vehicle_idx] = true;
+    }
   }
 
   /**
@@ -33,47 +41,56 @@ public:
    * @param pose  pose of the frame
    * @return  if true, the frame should be registered
    */
-  bool update(const Eigen::Isometry3d& pose) 
+  bool update(const Eigen::Isometry3d& pose, int vehicle_id) 
   {
-    // first frame is always registered to the graph
-    if(is_first) 
+    for (size_t vehicle_idx = 0; vehicle_idx < vehicle_num_; vehicle_idx++)
     {
-      is_first = false;
-      prev_keypose = pose;
+      if (vehicle_idx != vehicle_id)
+        continue;
+
+    
+      // first frame is always registered to the graph
+      if(is_first_[vehicle_idx]) 
+      {
+        is_first_[vehicle_idx] = false;
+        vec_prev_keypose_[vehicle_idx] = pose;
+        return true;
+      }
+
+      // calculate the delta transformation from the previous keyframe
+      Eigen::Isometry3d delta = vec_prev_keypose_[vehicle_idx].inverse() * pose;
+      double dx = delta.translation().norm();
+      double da = Eigen::AngleAxisd(delta.linear()).angle();
+
+      // too close to the previous frame
+      if(dx < keyframe_delta_trans && da < keyframe_delta_angle) {
+        return false;
+      }
+
+      vec_accumulated_distance_[vehicle_idx] += dx; // Keyframe으로써 추가가 되는 것이 확정되면 누적 거리를 증가
+      vec_prev_keypose_[vehicle_idx] = pose;
       return true;
     }
-
-    // calculate the delta transformation from the previous keyframe
-    Eigen::Isometry3d delta = prev_keypose.inverse() * pose;
-    double dx = delta.translation().norm();
-    double da = Eigen::AngleAxisd(delta.linear()).angle();
-
-    // too close to the previous frame
-    if(dx < keyframe_delta_trans && da < keyframe_delta_angle) {
-      return false;
-    }
-
-    accum_distance += dx; // Keyframe으로써 추가가 되는 것이 확정되면 누적 거리를 증가
-    prev_keypose = pose;
-    return true;
   }
 
   /**
    * @brief the last keyframe's accumulated distance from the first keyframe
    * @return accumulated distance
    */
-  double get_accum_distance() const {
-    return accum_distance;
+  double get_accum_distance(int vehicle_num) const 
+  {
+    return vec_accumulated_distance_[vehicle_num];
   }
 
 private:
   // parameters
   double keyframe_delta_trans;  //
   double keyframe_delta_angle;  //
+  int vehicle_num_;
 
-  bool is_first;
-  double accum_distance;
-  Eigen::Isometry3d prev_keypose;
+  std::vector<bool> is_first_;
+  std::vector<double> vec_accumulated_distance_;
+  std::vector<Eigen::Isometry3d> vec_prev_keypose_;
 };
 
 }  // namespace hdl_graph_slam
