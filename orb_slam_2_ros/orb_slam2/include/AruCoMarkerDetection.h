@@ -85,7 +85,7 @@ public:
         mPostModify = (cv::Mat_<float>(4, 4) <<     1.0000,         0,         0,            0,
                                                     0,              0.9696,   -0.2447,       0,
                                                     0,              0.2447,    0.9696,       0,
-                                                    0,              0,              0,       1);
+                                                    0,              0,              0,       1); // 신공학관 5층
 
         return true;
     }
@@ -166,13 +166,13 @@ public:
     cv::Mat GetPose() {
         // Implementation for getting the pose
         if(!mPose.empty() && mMarkerDetected )
-            return mPostModify*mPose*AroCo2Map;
+            return mPose*AroCo2Map;
         return cv::Mat();
     }
     cv::Mat GetPoseInverse() {
         // Implementation for getting the pose
         if(!mPoseInverse.empty() && mMarkerDetected)
-            return mPostModify*mPoseInverse*AroCo2Map;
+            return mPoseInverse*AroCo2Map;
         return cv::Mat();
     }
 

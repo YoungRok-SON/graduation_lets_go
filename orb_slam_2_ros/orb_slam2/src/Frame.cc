@@ -753,7 +753,7 @@ pcl::PointCloud<PointT>::Ptr Frame::ApplyPCDFilter(pcl::PointCloud<PointT>::Ptr 
 
     // Voxel Grid filter
     pcl::VoxelGrid<PointT> sor;
-    sor.setInputCloud (cloud);
+    sor.setInputCloud (cloud_filtered);
     sor.setLeafSize (voxel_size, voxel_size, voxel_size);
     sor.filter (*cloud_filtered);
 

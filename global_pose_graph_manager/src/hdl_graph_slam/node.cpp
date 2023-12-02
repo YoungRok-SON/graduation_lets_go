@@ -134,6 +134,7 @@ namespace hdl_graph_slam
     optimization_thread =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::optimization_timer_callback, this);
     map_publish_thread  =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::map_points_publish_timer_callback, this);
 
+    anchor_connected = false;
     
     std::cout << "HdlGraphSlamNode Initialization Done." << std::endl;
 
@@ -219,6 +220,8 @@ namespace hdl_graph_slam
 
       if (!keyframe_updated)
         continue;
+      // if (!anchor_connected)
+      //   continue;
 
       // loop detection 
       // To Do 
@@ -253,7 +256,12 @@ namespace hdl_graph_slam
       }
       std::cout << "Loop Detection Done. \n " << keyframe_updated << std::flush;
       // optimize the pose graph
-    
+      if (anchor_node && nh_.param<bool>("global_pose_graph_manager/fix_first_node_adaptive", true))
+      {
+        Eigen::Isometry3d anchor_target = static_cast<g2o::VertexSE3 *>(anchor_edge->vertices()[1])->estimate();
+        anchor_node->setEstimate(anchor_target);
+      }
+
       graph_slam->optimize(num_iterations); // 지정한 회수만큼 최적화 진행
       graph_updated = true;
 
@@ -346,10 +354,11 @@ namespace hdl_graph_slam
           if (mvvKFs[vehicle_idx].empty() && mvdKFs_new[vehicle_idx].size() == 1) // check each vehicle's first keyframe
           {
 
-            if (nh_.param<bool>("global_pose_graph_manager/fix_first_node", false))
+            if (nh_.param<bool>("global_pose_graph_manager/fix_first_node", true))
             {
               Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
               std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/fix_first_node_stddev", "1 1 1 1 1 1"));
+              // static int connected_vhiecle = 1;
               for (int i = 0; i < 6; i++)
               {
                 double stddev = 1.0;
@@ -363,7 +372,14 @@ namespace hdl_graph_slam
                 anchor_established = true;
               }
               anchor_edge = graph_slam->add_se3_edge(anchor_node, keyframe->node, Eigen::Isometry3d::Identity(), inf); // 앵커노드와 각 vehicle의 첫번째 키프레임 사이 에지를 지정
+              // connected_vhiecle++;
+              // if (connected_vhiecle == num_vehicle_)
+              // {
+              //   anchor_connected = true;
+              // }
+              
               std::cout << "Anchor Vertex Fixed. \n" << std::endl;
+              
             }
           }
 
@@ -377,24 +393,26 @@ namespace hdl_graph_slam
           // add edge between consecutive keyframes
           const auto &prev_keyframe = i == 0 ? mvvKFs[vehicle_idx].back() : keyframe_queues[vehicle_idx][i - 1]; // 일단 i==0 일때 현재 키프레임과 이전 키프레임을 엮어줘야하니 prev_keyframe을 지정해주는 것으로 보임
           /* --------------------------------------------------------------------------- */
-
+         
           std::cout << "KeyFrame Added to Graph. \n" << std::endl;
           // 연결된 두 포즈 사이의 상대 포즈를 계산
           Eigen::Isometry3d relative_pose = keyframe->odom.inverse() * prev_keyframe->odom; // 이전 키프레임 -> 현재 키프레임으로 가는 상대 포즈
-
+        
+          Eigen::MatrixXd inf = inf_calclator->calc_information_matrix(keyframe->cloud_t, prev_keyframe->cloud_t, relative_pose);
           // 연결된 두 포주 사이의 정보 행렬 계산 -> 고정된 값으로 진행(ORB), 조금 더 큰 값(NDT), 아루코마커 위치 정보에 대한 정보 행렬도 지정해서 그냥 사용
-          static double stddev_x = nh_.param<double>("global_pose_graph_manager/const_stddev_x", 0.0l);
-          static double stddev_q = nh_.param<double>("global_pose_graph_manager/const_stddev_q", 0.1);
-          Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
-          inf.topLeftCorner(3, 3).array() /= stddev_x*stddev_x;     // need to be increased by Uncertainty increase
-          inf.bottomRightCorner(3, 3).array() /= stddev_q*stddev_q; // need to be increased by Uncertainty increase
+          // static double stddev_x = nh_.param<double>("global_pose_graph_manager/const_stddev_x", 0.0l);
+          // static double stddev_q = nh_.param<double>("global_pose_graph_manager/const_stddev_q", 0.1);
+          // Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
+          // inf.topLeftCorner(3, 3).array() /= stddev_x*stddev_x;     // need to be increased by Uncertainty increase
+          // inf.bottomRightCorner(3, 3).array() /= stddev_q*stddev_q; // need to be increased by Uncertainty increase
+
           std::cout << "Information Matrix Calculated. " << std::endl << inf << std::endl;
-          stddev_x += 0.0001;
-          stddev_q += 0.001; 
-          if(stddev_x > 0.2)
-              stddev_x = 0.2;
-          if(stddev_q > 0.2)
-              stddev_q = 0.2;
+          // stddev_x += 0.0001;
+          // stddev_q += 0.001; 
+          // if(stddev_x > 0.2)
+          //     stddev_x = 0.2;
+          // if(stddev_q > 0.2)
+          //     stddev_q = 0.2;
           // 연결된 두 포즈 사이의 에지를 추가
           auto edge = graph_slam->add_se3_edge(keyframe->node, prev_keyframe->node, relative_pose, inf);
           // Robust Kernel 추가
@@ -596,6 +614,8 @@ namespace hdl_graph_slam
 
     edge_marker.pose.orientation.w = 1.0;
     edge_marker.scale.x = 0.05;
+    edge_marker.scale.y = 0.05;
+    edge_marker.scale.z = 0.05;
 
     edge_marker.points.resize(graph_slam->graph->edges().size() * 2);
     edge_marker.colors.resize(graph_slam->graph->edges().size() * 2);
@@ -638,6 +658,7 @@ namespace hdl_graph_slam
       }
     }
 
+
     // sphere
     visualization_msgs::Marker &sphere_marker = markers.markers[3];
     sphere_marker.header.frame_id = "map";
@@ -648,20 +669,20 @@ namespace hdl_graph_slam
 
     sphere_marker.points.resize(num_vehicle_);
     sphere_marker.colors.resize(num_vehicle_);
-    for (auto keyframes : mvvKFs)
+    for (int vehicle_idx = 0; vehicle_idx < num_vehicle_; vehicle_idx++)
     {
-      if (!keyframes.empty())
+      if (!mvvKFs[vehicle_idx].empty())
       {
-        Eigen::Vector3d pos = keyframes.back()->node->estimate().translation();
-        sphere_marker.pose.position.x = pos.x();
-        sphere_marker.pose.position.y = pos.y();
-        sphere_marker.pose.position.z = pos.z();
+        Eigen::Vector3d pos = mvvKFs[vehicle_idx].back()->node->estimate().translation();
+        sphere_marker.points[vehicle_idx].x = pos.x();
+        sphere_marker.points[vehicle_idx].y = pos.y();
+        sphere_marker.points[vehicle_idx].z = pos.z();
       }
       sphere_marker.pose.orientation.w = 1.0;
       sphere_marker.scale.x = sphere_marker.scale.y = sphere_marker.scale.z = loop_detector->get_distance_thresh() * 2.0;
 
-      sphere_marker.color.r = 1.0;
-      sphere_marker.color.a = 0.3;
+      sphere_marker.colors[vehicle_idx].r = 1.0;
+      sphere_marker.colors[vehicle_idx].a = 0.3;
       }
     std::cout  << "Global Pose Graph Marker Published" << std::endl;
 

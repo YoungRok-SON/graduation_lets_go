@@ -233,9 +233,11 @@ class HdlGraphSlamNode  {
     int map_cloud_update_interval;
 
 
-  std::string vehicle_camera_link_name;
-  std::string vehicle_base_link_name;
-  std::string vehicle_camera_color_optical_frame_name;
+    std::string vehicle_camera_link_name;
+    std::string vehicle_base_link_name;
+    std::string vehicle_camera_color_optical_frame_name;
+
+    bool anchor_connected;
 };
 
 }
