@@ -296,7 +296,7 @@ void Tracking::Track()
             if ( mpAruCoMarkerDetection->DetectMarkers(mImGray) )
             {
                 cout << "Marker Detected" << endl;
-                StereoInitialization(mpAruCoMarkerDetection->GetPose()); // marker to cameara pose
+                StereoInitialization(cv::Mat::eye(4,4,CV_32F)); // marker to cameara pose
             }
             else
             {

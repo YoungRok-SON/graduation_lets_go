@@ -51,11 +51,12 @@ namespace hdl_graph_slam
 
   KeyFrame::KeyFrame( const ros::Time &stamp, const Eigen::Isometry3d &odom,
                       double accum_distance, const pcl::PointCloud<PointC>::Ptr &cloud,
-                      int keyframe_id, int vehicle_id)
+                      int keyframe_id, int vehicle_id, bool anchor_node)
                       : stamp(stamp), odom(odom),
                         accum_distance(accum_distance), cloud_c(nullptr),cloud_t(nullptr),
                         node(nullptr), 
-                        keyframe_id(keyframe_id), vehicle_id(vehicle_id)
+                        keyframe_id(keyframe_id), vehicle_id(vehicle_id),
+                        anchor_node(anchor_node)
   {
       this->cloud_c = cloud;
       // conver xyzrgb to xyzi

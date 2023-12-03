@@ -134,8 +134,7 @@ namespace hdl_graph_slam
     optimization_thread =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::optimization_timer_callback, this);
     map_publish_thread  =new std::thread(&hdl_graph_slam::HdlGraphSlamNode::map_points_publish_timer_callback, this);
 
-    anchor_connected = false;
-    
+    nr_near_unroot_ = nh_.param<int>("global_pose_graph_manager/nr_nrea_unroot", 2);
     std::cout << "HdlGraphSlamNode Initialization Done." << std::endl;
 
     return true;
@@ -178,7 +177,8 @@ namespace hdl_graph_slam
 
     // Create Keyframe object
     double accum_d = keyframe_updater->get_accum_distance(vehicle_id);
-    KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, transformed, keyframe_id, vehicle_id));
+    bool anchor_node = keyframe_updater->is_new_anchor(vehicle_id);
+    KeyFrame::Ptr keyframe = KeyFrame::Ptr(new KeyFrame(stamp, odom, accum_d, transformed, keyframe_id, vehicle_id, anchor_node));
 
     std::lock_guard<std::mutex> lock(keyframe_queue_mutex); // 뮤텍스 걸고
     keyframe_queues[keyframe->vehicle_id].push_back(keyframe); // 생성한 키프레임 객체를 id에 맞는 큐에 넣기
@@ -220,21 +220,14 @@ namespace hdl_graph_slam
 
       if (!keyframe_updated)
         continue;
-      // if (!anchor_connected)
-      //   continue;
 
-      // loop detection 
-      // To Do 
-      // Detect Loop Closing in case of multi-vehicle
-      // 1. N:N Matching 
-      // 2. N:M Matching
       std::cout << "Loop Detection Started.\n" << std::flush;
+      std::vector<Loop::Ptr> loops;
       for (size_t vehicle_idx = 0; vehicle_idx < num_vehicle_; vehicle_idx++)
       {
         for (size_t target_vehicle_idx = 0; target_vehicle_idx < num_vehicle_; target_vehicle_idx++)
         {
-
-          std::vector<Loop::Ptr> loops = loop_detector->detect(mvvKFs[target_vehicle_idx], mvdKFs_new[vehicle_idx], *graph_slam);
+           loops = loop_detector->detect(mvvKFs[target_vehicle_idx], mvdKFs_new[vehicle_idx], *graph_slam);
           // 새로운 키프래임과 이전 키프레임 사이의 매칭 진행? -> N(기존 키프레임들) : M(새로운 키프레임들) 사이의 매칭을 진행해서 여러개가 나올 수 있음.
           for (const auto &loop : loops)
           {
@@ -243,11 +236,55 @@ namespace hdl_graph_slam
             std::cout << "----------------------loop closure inf matrix -----------------------" << std::endl
             << information_matrix << std::endl << std::endl << std::endl;
             auto edge = graph_slam->add_se3_edge(loop->key1->node, loop->key2->node, relpose, information_matrix);
+
             
             graph_slam->add_robust_kernel(edge, nh_.param<std::string>("global_pose_graph_manager/loop_closure_edge_robust_kernel", "NONE"), nh_.param<double>("global_pose_graph_manager/loop_closure_edge_robust_kernel_size", 1.0));
             // Debug Publisher    
             if(debug_loop_closer_target_pub.getNumSubscribers() && debug_loop_closer_source_pub.getNumSubscribers())
               debug_loop_closure_points_pose(loop);
+
+          // Uproot anchor nodes and around nodes
+          auto it = std::find_if(mvKF_anchor.begin(), mvKF_anchor.end(), 
+                                [key1 = loop->key1](const KeyFrame::Ptr& obj) { return obj == key1; });
+
+          if (it != mvKF_anchor.end()) 
+          {
+              // 자신에 대한 정보를 변경
+              (*it)->node->setFixed(false);
+              // 주변 객체들의 속성을 변경
+              for (int i = 1; i <= nr_near_unroot_; ++i) 
+              {
+                  if (it - i >= mvKF_anchor.begin()) 
+                  {
+                      (*(it - i))->node->setFixed(false);
+                  }
+                  if (it + i < mvKF_anchor.end()) 
+                  {
+                      (*(it + i))->node->setFixed(false);
+                  }
+              }
+          }
+
+          it = std::find_if(mvKF_anchor.begin(), mvKF_anchor.end(), 
+                      [key2 = loop->key2](const KeyFrame::Ptr& obj) { return obj == key2; });
+
+          if (it != mvKF_anchor.end()) 
+          {
+              // 자신에 대한 정보를 변경
+              (*it)->node->setFixed(false);
+              // 주변 객체들의 속성을 변경
+              for (int i = 1; i <= nr_near_unroot_; ++i) 
+              {
+                  if (it - i >= mvKF_anchor.begin()) 
+                  {
+                      (*(it - i))->node->setFixed(false);
+                  }
+                  if (it + i < mvKF_anchor.end()) 
+                  {
+                      (*(it + i))->node->setFixed(false);
+                  }
+              }
+            }
           }
         }
         std::copy(mvdKFs_new[vehicle_idx].begin(), mvdKFs_new[vehicle_idx].end(), std::back_inserter(mvvKFs[vehicle_idx]));
@@ -262,8 +299,60 @@ namespace hdl_graph_slam
         anchor_node->setEstimate(anchor_target);
       }
 
-      graph_slam->optimize(num_iterations); // 지정한 회수만큼 최적화 진행
+
+      // 지정한 회수만큼 최적화 진행
+      graph_slam->optimize(num_iterations); 
       graph_updated = true;
+      
+
+
+      // root anchor nodes and around nodes
+      for (const auto &loop : loops)
+      {
+        auto it = std::find_if(mvKF_anchor.begin(), mvKF_anchor.end(), 
+                              [key1 = loop->key1](const KeyFrame::Ptr& obj) { return obj == key1; });
+
+        if (it != mvKF_anchor.end()) 
+        {
+            // 자신에 대한 정보를 변경
+            (*it)->node->setFixed(false);
+            // 주변 객체들의 속성을 변경
+            for (int i = 1; i <= nr_near_unroot_; ++i) 
+            {
+                if (it - i >= mvKF_anchor.begin()) 
+                {
+                    (*(it - i))->node->setFixed(true);
+                }
+                if (it + i < mvKF_anchor.end()) 
+                {
+                    (*(it + i))->node->setFixed(true);
+                }
+            }
+        }
+
+        it = std::find_if(mvKF_anchor.begin(), mvKF_anchor.end(), 
+                    [key2 = loop->key2](const KeyFrame::Ptr& obj) { return obj == key2; });
+
+        if (it != mvKF_anchor.end()) 
+        {
+          // 자신에 대한 정보를 변경
+          (*it)->node->setFixed(false);
+          // 주변 객체들의 속성을 변경
+          for (int i = 1; i <= nr_near_unroot_; ++i) 
+          {
+            if (it - i >= mvKF_anchor.begin()) 
+            {
+                (*(it - i))->node->setFixed(true);
+            }
+            if (it + i < mvKF_anchor.end()) 
+            {
+                (*(it + i))->node->setFixed(true);
+            }
+          }
+        }
+      }
+
+      // Root anchor nodes and arround nodes
 
       std::cout << "Graph Optimization Done. "  << "\n" << std::flush;
 
@@ -349,6 +438,12 @@ namespace hdl_graph_slam
           Eigen::Isometry3d odom = vec_odom2map[vehicle_idx] * keyframe->odom;
           // Keyframe 객체를 생성할 때 노드에 대한 값이 비어 있음. 그걸 이때 채워넣음. 그리고 그래프 안에도 넣어줌
           keyframe->node = graph_slam->add_se3_node(odom); 
+          if(keyframe->anchor_node)
+          {
+            keyframe->node->setFixed(true);
+            mvKF_anchor.push_back(keyframe);
+            std::cout << "------" << "Anchor Vertex Fixed. Vehicle: "  << vehicle_idx << "------" << std::endl;
+          }
           
           // fix the first node
           if (mvvKFs[vehicle_idx].empty() && mvdKFs_new[vehicle_idx].size() == 1) // check each vehicle's first keyframe
@@ -358,7 +453,7 @@ namespace hdl_graph_slam
             {
               Eigen::MatrixXd inf = Eigen::MatrixXd::Identity(6, 6);
               std::stringstream sst(nh_.param<std::string>("fix_first_nglobal_pose_graph_manager/fix_first_node_stddev", "1 1 1 1 1 1"));
-              // static int connected_vhiecle = 1;
+              static int connected_vhiecle = 1;
               for (int i = 0; i < 6; i++)
               {
                 double stddev = 1.0;
@@ -371,23 +466,19 @@ namespace hdl_graph_slam
                 anchor_node->setFixed(true);  // 고정
                 anchor_established = true;
               }
-              anchor_edge = graph_slam->add_se3_edge(anchor_node, keyframe->node, Eigen::Isometry3d::Identity(), inf); // 앵커노드와 각 vehicle의 첫번째 키프레임 사이 에지를 지정
-              // connected_vhiecle++;
-              // if (connected_vhiecle == num_vehicle_)
-              // {
-              //   anchor_connected = true;
-              // }
+              anchor_edge = graph_slam->add_se3_edge(anchor_node, keyframe->node, keyframe->node->estimate(), inf); // 앵커노드와 각 vehicle의 첫번째 키프레임 사이 에지를 지정
               
-              std::cout << "Anchor Vertex Fixed. \n" << std::endl;
-              
+              std::cout << "Anchor Vertex Fixed. Vehicle: "  << vehicle_idx << std::endl;
             }
           }
+
 
           if (i == 0 && mvvKFs[vehicle_idx].empty()) // 만약 Keyframe들을 모아놓는 벡터에 아무것도 없으면 그냥 넘어감
           {
 
             continue; // Anchor Node와 첫 키프레임 사이의 에지를 추가하고 넘어감
           }
+          std::cout << " Vehicle ID: " << vehicle_idx << " Keyframe Node ID: " << keyframe->node->id() << std::endl;
 
           /* --------------------------------------------------------------------------- */
           // add edge between consecutive keyframes

@@ -117,16 +117,16 @@ public:
             cv::Mat R;
             cv::Rodrigues(mRotVec, R); // 회전 벡터를 회전 행렬로 변환
 
-            // mPose = (cv::Mat_<float>(4, 4) << 
-            // R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), mTransVec.at<double>(0),
-            // R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), mTransVec.at<double>(1),
-            // R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), mTransVec.at<double>(2),
-            // 0, 0, 0, 1);
             mPose = (cv::Mat_<float>(4, 4) << 
-            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), 0.0,
-            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), 0.0,
-            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), 0.0,
+            R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), mTransVec.at<double>(0),
+            R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), mTransVec.at<double>(1),
+            R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), mTransVec.at<double>(2),
             0, 0, 0, 1);
+            // mPose = (cv::Mat_<float>(4, 4) << 
+            // R.at<double>(0,0), R.at<double>(0,1), R.at<double>(0,2), 0.0,
+            // R.at<double>(1,0), R.at<double>(1,1), R.at<double>(1,2), 0.0,
+            // R.at<double>(2,0), R.at<double>(2,1), R.at<double>(2,2), 0.0,
+            // 0, 0, 0, 1);
 
             mPoseInverse = mPose.inv(); // 동차 변환 행렬의 역변환
             std::cout << "Marker estimation has done." << std::endl;
@@ -166,13 +166,13 @@ public:
     cv::Mat GetPose() {
         // Implementation for getting the pose
         if(!mPose.empty() && mMarkerDetected )
-            return mPose*AroCo2Map;
+            return mPose;
         return cv::Mat();
     }
     cv::Mat GetPoseInverse() {
         // Implementation for getting the pose
         if(!mPoseInverse.empty() && mMarkerDetected)
-            return mPoseInverse*AroCo2Map;
+            return mPoseInverse;
         return cv::Mat();
     }
 

@@ -219,6 +219,8 @@ class HdlGraphSlamNode  {
     g2o::VertexSE3 *anchor_node;
     g2o::EdgeSE3 *anchor_edge;
     std::vector<std::vector<KeyFrame::Ptr>> mvvKFs; // All Keyframes of All Vehicles
+    std::vector<KeyFrame::Ptr> mvKF_anchor;
+    int nr_near_unroot_;
 
     std::unique_ptr<GraphSLAM> graph_slam;
     std::unique_ptr<LoopDetector> loop_detector;

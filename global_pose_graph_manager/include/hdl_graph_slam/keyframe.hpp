@@ -47,7 +47,7 @@ namespace hdl_graph_slam
 
 
     KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::Ptr &cloud);
-    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointC>::Ptr &cloud, int keyframe_id, int vehicle_id);
+    KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointC>::Ptr &cloud, int keyframe_id, int vehicle_id, bool anchor_node);
     KeyFrame(const ros::Time &stamp, const Eigen::Isometry3d &odom, double accum_distance, const pcl::PointCloud<PointT>::Ptr &cloud, float leaf_size, int min_nr);
     KeyFrame(const std::string &directory, g2o::HyperGraph *graph);
     virtual ~KeyFrame();
@@ -70,6 +70,7 @@ namespace hdl_graph_slam
     // vertex 번호도 필요한가..? node에서 가져올 수 있지 않을까?
 
     g2o::VertexSE3 *node; // node instance
+    bool anchor_node;     // anchor node or not
 
     // For new features
     LeafMap leaves;

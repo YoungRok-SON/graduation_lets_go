@@ -8,7 +8,7 @@
   <arg name="lidar_odom_frame_id" default="odom" />
 
   <!-- hdl_graph_slam_node -->
-  <node name="global_pose_graph_manager" pkg="hdl_graph_slam" type="hdl_graph_slam_node"  >
+  <node name="global_pose_graph_manager" pkg="hdl_graph_slam" type="hdl_graph_slam_node"  output="screen">
     <!-- New Features -->
     <param name="create_scan_ndt"     value="false" />
     <param name="use_submap_loop"     value="true" />
@@ -34,21 +34,23 @@
     <param name="max_keyframes_per_update" value="20" />
     <param name="keyframe_delta_trans" value="0.5" />       <!-- meter-Default: 1.0 -->
     <param name="keyframe_delta_angle" value="0.261799" />  <!-- Radian-Default: 2.0 / 0.523599Rad=30Deg, 0.349066Rad=20Deg / 0.261799Rad=15Deg-->
+    <param name="keyframe_delta_anchor" value="5.0" />  <!-- meter -->
+    <param name="nr_near_unroot" value="2" />  <!-- -->
     <!-- fix first node for optimization stability -->
     <param name="fix_first_node" value="true"/>
-    <param name="fix_first_node_stddev" value="0.001 0.001 0.001 0.0001 0.0001 0.0001"/>
-    <param name="fix_first_node_adaptive" value="true"/>
+    <param name="fix_first_node_stddev" value="0.001 0.001 0.001 0.01 0.01 0.01"/>
+    <param name="fix_first_node_adaptive" value="false"/>
     <!-- loop closure params -->
     <param name="distance_thresh" value="2" />  <!-- Loop Closure를 매칭할 최소 위치(node-node) -->
-    <param name="accum_distance_thresh" value="10" />
-    <param name="min_edge_interval" value="3" />
+    <param name="accum_distance_thresh" value="8" />
+    <param name="min_edge_interval" value="5" />
     <param name="fitness_score_thresh" value="0.1" /> <!-- 낮을수록 매칭 잘 된 거 -->
     <!-- scan matching params -->
     <!-- ICP, GICP, NDT, GICP_OMP, NDT_OMP, FAST_GICP(recommended), or FAST_VGICP -->
     <param name="registration_method" value="NDT_OMP" />
     <param name="reg_num_threads" value="8" />
     <param name="reg_transformation_epsilon" value="0.01"/>
-    <param name="reg_maximum_iterations" value="128"/>
+    <param name="reg_maximum_iterations" value="64"/>
     <param name="reg_max_correspondence_distance" value="0.4"/> <!--원래는 0.4 -->
     <param name="reg_max_optimizer_iterations" value="20"/>
     <param name="reg_use_reciprocal_correspondences" value="false"/>
@@ -59,18 +61,18 @@
 
     <!-- scan matching -->
     <!-- robust kernels: NONE, Cauchy, DCS, Fair, GemanMcClure, Huber, PseudoHuber, Saturated, Tukey, Welsch -->
-    <param name="odometry_edge_robust_kernel" value="Cauchy" />
+    <param name="odometry_edge_robust_kernel" value="NONE" />
     <param name="odometry_edge_robust_kernel_size" value="1.0" />
     <param name="loop_closure_edge_robust_kernel" value="Huber" />
     <param name="loop_closure_edge_robust_kernel_size" value="1.0" />
     <param name="use_const_inf_matrix" value="true" />
-    <param name="const_stddev_x" value="0.01" />
-    <param name="const_stddev_q" value="0.001" />
+    <param name="const_stddev_x" value="0.1" />
+    <param name="const_stddev_q" value="0.01" />
     <param name="var_gain_a" value="20.0" />
     <param name="min_stddev_x" value="0.005" />
+    <param name="min_stddev_q" value="0.001" />
     <param name="max_stddev_x" value="0.5" />
-    <param name="min_stddev_q" value="0.1" />
-    <param name="max_stddev_q" value="2.0" />
+    <param name="max_stddev_q" value="0.1" />
     <!-- update params -->
     <param name="graph_update_interval" value="3" />
     <param name="map_cloud_update_interval" value="5" />
